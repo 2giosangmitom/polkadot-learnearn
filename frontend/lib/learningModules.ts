@@ -6,7 +6,7 @@ export interface Module {
   description: string;
   question: string;
   tuition: number; // learner pays this to the instructor
-  reward: number; // sponsor reward returned to learner (WND)
+  reward: number; // sponsor reward returned to learner (PAS)
   keywords: string[]; // For AI evaluation
 }
 

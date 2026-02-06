@@ -21,36 +21,98 @@ async function getExtensionApi() {
   return extensionApi;
 }
 
-// Paseo Asset Hub RPC
-export const WS_PROVIDER = 'wss://paseo-asset-hub-rpc.polkadot.io';
-
-let api: ApiPromise | null = null;
+// Track if extension is enabled
+let extensionEnabled = false;
 
 /**
- * Kết nối đến Polkadot node
+ * Ensure extension is enabled before using other web3 functions
  */
-export async function getPolkadotApi(): Promise<ApiPromise> {
-  if (api) return api;
-
-  const provider = new WsProvider(WS_PROVIDER);
-  api = await ApiPromise.create({ provider });
+async function ensureExtensionEnabled() {
+  if (extensionEnabled) return;
   
-  console.log('✅ Connected to Polkadot:', await api.rpc.system.chain());
-  return api;
-}
-
-/**
- * Kết nối ví Polkadot. js extension
- */
-export async function connectWallet() {
-  const { web3Enable, web3Accounts } = await getExtensionApi();
-
-  // Enable extension
+  const { web3Enable } = await getExtensionApi();
   const extensions = await web3Enable('Learn & Earn');
   
   if (extensions.length === 0) {
-    throw new Error('No extension installed.  Please install Polkadot. js extension.');
+    throw new Error('No extension installed. Please install Polkadot.js extension.');
   }
+  
+  extensionEnabled = true;
+  console.log('✅ Polkadot extension enabled');
+}
+
+// Paseo Asset Hub RPC - multiple official endpoints for fallback
+export const RPC_ENDPOINTS = [
+  'wss://sys.ibp.network/asset-hub-paseo',
+  'wss://paseo-asset-hub.rpc.amforc.com',
+  'wss://rpc-asset-hub-paseo.luckyfriday.io',
+  'wss://asset-hub-paseo.dotters.network',
+];
+
+let api: ApiPromise | null = null;
+let currentEndpoint: string | null = null;
+
+/**
+ * Kết nối đến Polkadot node với fallback endpoints
+ */
+export async function getPolkadotApi(): Promise<ApiPromise> {
+  if (api && api.isConnected) return api;
+
+  // Reset if disconnected
+  if (api && !api.isConnected) {
+    console.log('🔄 API disconnected, reconnecting...');
+    api = null;
+  }
+
+  // Try each endpoint until one works
+  for (const endpoint of RPC_ENDPOINTS) {
+    try {
+      console.log(`🔄 Trying to connect to: ${endpoint}`);
+      
+      const provider = new WsProvider(endpoint, 3000); // 3s auto-reconnect delay
+      
+      // Wait for connection with timeout
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          provider.disconnect();
+          reject(new Error('Connection timeout'));
+        }, 8000); // 8s timeout
+
+        provider.on('connected', () => {
+          clearTimeout(timeout);
+          resolve();
+        });
+
+        provider.on('error', () => {
+          clearTimeout(timeout);
+          reject(new Error('Connection error'));
+        });
+      });
+
+      api = await ApiPromise.create({ provider });
+      currentEndpoint = endpoint;
+      
+      const chain = await api.rpc.system.chain();
+      console.log(`✅ Connected to: ${chain} via ${endpoint}`);
+      return api;
+      
+    } catch (error) {
+      console.warn(`❌ Failed to connect to ${endpoint}:`, (error as Error).message);
+      continue;
+    }
+  }
+
+  throw new Error('Failed to connect to any Polkadot RPC endpoint. Please check your network connection.');
+}
+
+/**
+ * Kết nối ví Polkadot.js extension
+ */
+export async function connectWallet() {
+  const { web3Accounts } = await getExtensionApi();
+
+  // Enable extension first
+  await ensureExtensionEnabled();
 
   // Get all accounts
   const accounts = await web3Accounts();
@@ -63,47 +125,55 @@ export async function connectWallet() {
 }
 
 /**
- * Lấy balance của account (in WND - Westend tokens)
+ * Lấy balance của account (in PAS - Paseo tokens)
  */
 export async function getBalance(address: string): Promise<string> {
   const api = await getPolkadotApi();
   //@ts-ignore
   const { data:  { free } } = await api.query.system.account(address);
   
-  // Convert from Planck (smallest unit) to WND
-  const balance = (Number(free. toString()) / 1e12).toFixed(4);
+  // Convert from Planck (smallest unit) to PAS (10 decimals on Paseo)
+  const balance = (Number(free. toString()) / 1e10).toFixed(4);
   return balance;
 }
 
 /**
  * Gửi payment transaction
+ * Returns object with both transactionHash and blockHash for verification
  */
 export async function sendPayment(
   fromAddress: string,
   toAddress: string,
-  amount: number // in WND
-) {
+  amount: number // in PAS
+): Promise<{ transactionHash: string; blockHash: string }> {
   const api = await getPolkadotApi();
   const { web3FromAddress } = await getExtensionApi();
   
-  // Convert WND to Planck (1 WND = 10^12 Planck)
-  const amountInPlanck = BigInt(Math.floor(amount * 1e12));
+  // Ensure extension is enabled before getting injector
+  await ensureExtensionEnabled();
+  
+  // Convert PAS to Planck (1 PAS = 10^10 Planck on Paseo)
+  const amountInPlanck = BigInt(Math.floor(amount * 1e10));
 
   // Get injector for signing
   const injector = await web3FromAddress(fromAddress);
 
   // Create transfer transaction
-  const transfer = api.tx.balances. transferKeepAlive(toAddress, amountInPlanck);
+  const transfer = api.tx.balances.transferKeepAlive(toAddress, amountInPlanck);
 
-  // Sign and send
-  return new Promise<string>((resolve, reject) => {
+  // Sign and send - return both transactionHash and blockHash for verification
+  return new Promise((resolve, reject) => {
     transfer
-      .signAndSend(fromAddress, { signer: injector. signer }, ({ status, txHash }) => {
+      .signAndSend(fromAddress, { signer: injector.signer }, ({ status, txHash }) => {
         if (status.isInBlock) {
-          console.log(`✅ Transaction included in block: ${txHash. toHex()}`);
-          resolve(txHash.toHex());
+          const blockHash = status.asInBlock.toHex();
+          const transactionHash = txHash.toHex();
+          console.log(`✅ Transaction included in block: ${blockHash}`);
+          console.log(`   Transaction hash: ${transactionHash}`);
+          // Return both hashes
+          resolve({ transactionHash, blockHash });
         } else if (status.isFinalized) {
-          console.log(`✅ Transaction finalized: ${txHash.toHex()}`);
+          console.log(`✅ Transaction finalized in block: ${status.asFinalized.toHex()}`);
         }
       })
       .catch(reject);
