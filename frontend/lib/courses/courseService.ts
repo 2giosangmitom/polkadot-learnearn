@@ -24,27 +24,39 @@ async function ensureTeacher(walletAddress: string) {
 export async function getCourses() {
   const { data, error } = await supabase
     .from('course')
-    .select('id, title, description, cost, wallet_address, created_at, update_at, lesson(*)');
+    .select('id, title, description, cost, wallet_address, created_at, update_at');
 
   if (error) {
     throw new Error(`Failed to fetch courses: ${error.message}`);
   }
 
-  return data as (Course & { lesson?: Lesson[] })[];
+  return data as Course[];
 }
 
 export async function getCourseById(id: string) {
-  const { data, error } = await supabase
+  const { data: course, error: courseError } = await supabase
     .from('course')
-    .select('*, lesson(*)')
+    .select('*')
     .eq('id', id)
     .maybeSingle();
 
-  if (error) {
-    throw new Error(`Failed to fetch course: ${error.message}`);
+  if (courseError) {
+    throw new Error(`Failed to fetch course: ${courseError.message}`);
   }
 
-  return data as (Course & { lesson?: Lesson[] }) | null;
+  if (!course) return null;
+
+  // Fetch lessons separately
+  const { data: lessons, error: lessonError } = await supabase
+    .from('lesson')
+    .select('*')
+    .eq('course_id', id);
+
+  if (lessonError) {
+    console.error('Failed to fetch lessons:', lessonError.message);
+  }
+
+  return { ...course, lesson: lessons || [] } as Course & { lesson?: Lesson[] };
 }
 
 export async function getCoursesByUser(walletAddress: string) {
@@ -52,14 +64,14 @@ export async function getCoursesByUser(walletAddress: string) {
 
   const { data, error } = await supabase
     .from('course')
-    .select('id, title, description, cost, wallet_address, created_at, update_at, lesson(*)')
+    .select('id, title, description, cost, wallet_address, created_at, update_at')
     .eq('wallet_address', walletAddress);
 
   if (error) {
     throw new Error(`Failed to fetch teacher courses: ${error.message}`);
   }
 
-  return data as (Course & { lesson?: Lesson[] })[];
+  return data as Course[];
 }
 
 export async function createCourse(

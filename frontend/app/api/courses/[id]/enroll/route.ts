@@ -31,7 +31,6 @@ export async function POST(
       );
     }
 
-    // Lấy thông tin khóa học
     const { data: course, error: courseError } = await supabase
       .from('course')
       .select('id, title, description, cost, wallet_address')
@@ -45,26 +44,54 @@ export async function POST(
       );
     }
 
-    // Kiểm tra xem đã enroll chưa
-    const { data: existingEnrollment } = await supabase
-      .from('enrollment')
-      .select('id')
-      .eq('course_id', courseId)
-      .eq('student_wallet', walletAddress)
-      .single();
+    // const { data: existingEnrollment } = await supabase
+    //   .from('course_purchase')
+    //   .select('id')
+    //   .eq('course_id', courseId)
+    //   .eq('student_wallet', walletAddress)
+    //   .single();
 
-    if (existingEnrollment) {
-      return NextResponse.json({
-        success: true,
-        message: 'Already enrolled',
-        courseId,
-      });
-    }
+    // if (existingEnrollment) {
+    //   return NextResponse.json({
+    //     success: true,
+    //     message: 'Already enrolled',
+    //     courseId,
+    //   });
+    // }
 
-    // Nếu có payment proof, verify với smol402 server
+    // If course is free, enroll directly without payment
+    // if (!course.cost || course.cost === 0) {
+    //   const { error: enrollError } = await supabase
+    //     .from('enrollment')
+    //     .insert({
+    //       course_id: courseId,
+    //       student_wallet: walletAddress,
+    //       tx_hash: null,
+    //       amount_paid: 0,
+    //     });
+
+    //   if (enrollError) {
+    //     console.error('Failed to enroll in free course:', enrollError);
+    //     return NextResponse.json(
+    //       { 
+    //         error: 'Enrollment failed', 
+    //         message: 'Failed to enroll in free course',
+    //         details: enrollError.message
+    //       },
+    //       { status: 500 }
+    //     );
+    //   }
+
+    //   return NextResponse.json({
+    //     success: true,
+    //     message: 'Enrolled successfully in free course',
+    //     courseId,
+    //   });
+    // }
+
+    // If payment proof provided, verify it
     if (paymentProof?.transactionHash || paymentProof?.blockHash) {
       try {
-        // Gọi smol402 server để verify payment (support both transactionHash and blockHash)
         const verifyRes = await fetch(`${SMOL402_SERVER}/verify`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -76,39 +103,75 @@ export async function POST(
           }),
         });
 
-        if (verifyRes.ok) {
-          const verifyData = await verifyRes.json();
-          
-          if (verifyData.verified) {
-            // Lưu enrollment vào database
-            const { error: enrollError } = await supabase
-              .from('enrollment')
-              .insert({
-                course_id: courseId,
-                student_wallet: walletAddress,
-                tx_hash: paymentProof.transactionHash || paymentProof.blockHash,
-                amount_paid: course.cost,
-              });
-
-            if (enrollError) {
-              console.error('Failed to save enrollment:', enrollError);
-            }
-
-            return NextResponse.json({
-              success: true,
-              message: 'Payment verified, enrolled successfully',
-              courseId,
-            });
-          }
+        if (!verifyRes.ok) {
+          return NextResponse.json(
+            { 
+              error: 'Payment verification failed', 
+              message: 'Unable to verify payment with backend server',
+              details: 'Please try again or contact support'
+            },
+            { status: 400 }
+          );
         }
+
+        const verifyData = await verifyRes.json();
+        
+        if (!verifyData.verified) {
+          return NextResponse.json(
+            { 
+              error: 'Payment not verified', 
+              message: 'Payment could not be verified on blockchain',
+              details: verifyData.error || 'Transaction not found or invalid amount'
+            },
+            { status: 400 }
+          );
+        }
+
+        // Payment verified! Enroll the student
+        const { error: enrollError } = await supabase
+          .from('enrollment')
+          .insert({
+            course_id: courseId,
+            student_wallet: walletAddress,
+            tx_hash: paymentProof.transactionHash || paymentProof.blockHash,
+            amount_paid: course.cost,
+          });
+
+        if (enrollError) {
+          console.error('Failed to save enrollment:', enrollError);
+          return NextResponse.json(
+            { 
+              error: 'Enrollment failed', 
+              message: 'Payment verified but failed to save enrollment',
+              details: enrollError.message
+            },
+            { status: 500 }
+          );
+        }
+
+        return NextResponse.json({
+          success: true,
+          message: 'Payment verified, enrolled successfully',
+          courseId,
+        });
+
       } catch (verifyError) {
-        console.error('Payment verification failed:', verifyError);
+        console.error('Payment verification error:', verifyError);
+        return NextResponse.json(
+          { 
+            error: 'Verification error', 
+            message: 'An error occurred while verifying payment',
+            details: verifyError instanceof Error ? verifyError.message : 'Unknown error'
+          },
+          { status: 500 }
+        );
       }
     }
 
-    // Chưa có payment hoặc payment không hợp lệ -> trả về 402
+    // No payment proof provided - return 402 Payment Required
     const tuitionPlanck = Math.floor((course.cost || 0) * 1e10); // 10 decimals for PAS on Paseo
     const recipientWallet = course.wallet_address || process.env.DEFAULT_RECIPIENT_WALLET;
+    // const recipientWallet = "1RPK4brFegTGGKHFpjZ7jxZ3jiwCMyihhMFQomyzHAJfcUV";
 
     return new NextResponse(
       JSON.stringify({

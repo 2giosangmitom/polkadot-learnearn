@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { createCourseAction } from '@/app/teacher/create/actions';
+import { createCourseAction } from '../../app/pages/teacher/create/actions';
 import { useWallet } from '@/lib/hooks/useWallet';
 
 interface LessonForm {
@@ -179,7 +179,7 @@ export default function CreateCourseForm() {
 
           <div>
             <label htmlFor="cost" className="block text-sm font-medium text-gray-700 mb-1">
-              Cost (DOT) *
+              Cost (PAS) *
             </label>
             <input
               id="cost"

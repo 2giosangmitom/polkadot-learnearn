@@ -2,30 +2,43 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useConnect, useAccounts, ConnectionStatus } from '@luno-kit/react';
-import { paseo } from '@luno-kit/react/chains';
-import { X, Wallet } from 'lucide-react';
+import { paseoAssetHub } from '@luno-kit/react/chains';
+import { X, Wallet, ExternalLink } from 'lucide-react';
 
 interface WalletConnectProps {
   onClose: () => void;
   onConnect?: (address: string, balance: string) => void;
 }
 
+const walletIcons: Record<string, string> = {
+  'polkadotjs': '🟣',
+  'subwallet-js': '🔵',
+  'talisman': '🔮',
+  'enkrypt': '🦊',
+  'polkagate': '🚪',
+};
+
 export function WalletConnect({ onClose, onConnect }: WalletConnectProps) {
   const { connectors, connectAsync, status, isPending } = useConnect();
   const { accounts, selectAccount } = useAccounts();
   const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
 
-  // Auto-select first account after connection
+  // Auto-select first account after successful connection
   useEffect(() => {
-    if (accounts.length > 0) {
+    if (accounts.length > 0 && status === ConnectionStatus.Connected) {
+      console.log('✅ Connected, selecting account:', accounts[0].address);
       selectAccount(accounts[0]);
       onClose();
     }
-  }, [accounts, selectAccount, onClose]);
+  }, [accounts, status, selectAccount, onClose]);
 
   const orderedConnectors = useMemo(() => {
     const preferred = [
       'subwallet-js',
+      'talisman',
+      'polkadotjs',
+      'enkrypt',
+      'polkagate',
     ];
 
     return [...connectors].sort(
@@ -38,7 +51,7 @@ export function WalletConnect({ onClose, onConnect }: WalletConnectProps) {
       setSelectedConnectorId(connectorId);
       await connectAsync({
         connectorId,
-        targetChainId: paseo.genesisHash,
+        targetChainId: paseoAssetHub.genesisHash,
       });
     } catch (error) {
       console.error('❌ Wallet connection failed:', error);
@@ -50,19 +63,19 @@ export function WalletConnect({ onClose, onConnect }: WalletConnectProps) {
   const isConnecting = status === ConnectionStatus.Connecting;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[85vh] overflow-y-auto animate-slideUp">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+      <div className="bg-[#0f1117] border border-[#1f2430] rounded-xl shadow-2xl max-w-md w-full max-h-[85vh] overflow-y-auto animate-slideUp">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b-2 border-rose-100 bg-gradient-to-r from-rose-50 to-pink-50">
+        <div className="flex items-center justify-between p-6 border-b border-[#1f2430]">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Connect Wallet</h2>
-            <p className="text-sm text-gray-600 mt-1">Choose your preferred wallet</p>
+            <h2 className="text-2xl font-bold text-[#e5e7eb]">Connect Wallet</h2>
+            <p className="text-sm text-[#9ca3af] mt-1">Choose your preferred wallet extension</p>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 hover:bg-rose-100 p-2 rounded-full transition-all"
+            className="text-[#9ca3af] hover:text-[#e5e7eb] hover:bg-[#1a1d26] p-2 rounded-full transition-all"
           >
-            <X className="w-6 h-6" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -78,16 +91,16 @@ export function WalletConnect({ onClose, onConnect }: WalletConnectProps) {
                     (isPending || isConnecting) &&
                     selectedConnectorId === connector.id
                   }
-                  className="w-full flex items-center gap-4 p-4 border-2 border-gray-200 rounded-xl hover:border-[#e6007a] hover:bg-gradient-to-br hover:from-rose-50 hover:to-pink-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+                  className="w-full flex items-center gap-4 p-4 bg-[#11131a] border border-[#1f2430] rounded-lg hover:border-[#e6007a] hover:bg-[#1a1d26] transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
                 >
-                  <div className="w-12 h-12 bg-gradient-to-br from-gray-100 to-gray-50 rounded-xl flex items-center justify-center group-hover:from-rose-100 group-hover:to-pink-100 transition-all shadow-sm">
-                    <Wallet className="w-6 h-6 text-[#e6007a]" />
+                  <div className="w-12 h-12 bg-[#1a1d26] rounded-lg flex items-center justify-center group-hover:bg-[#e6007a]/10 transition-all text-2xl">
+                    {walletIcons[connector.id] || <Wallet className="w-6 h-6 text-[#e6007a]" />}
                   </div>
                   <div className="flex-1 text-left">
-                    <p className="font-semibold text-gray-900 group-hover:text-[#e6007a] transition-colors">
+                    <p className="font-semibold text-[#e5e7eb] group-hover:text-[#e6007a] transition-colors">
                       {connector.name}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-[#9ca3af]">
                       {(isPending || isConnecting) &&
                       selectedConnectorId === connector.id
                         ? 'Connecting...'
@@ -103,40 +116,49 @@ export function WalletConnect({ onClose, onConnect }: WalletConnectProps) {
             </div>
           ) : (
             <div className="text-center py-10">
-              <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Wallet className="w-10 h-10 text-gray-300" />
+              <div className="w-20 h-20 bg-[#1a1d26] rounded-full flex items-center justify-center mx-auto mb-4">
+                <Wallet className="w-10 h-10 text-[#9ca3af]" />
               </div>
-              <p className="text-gray-700 font-semibold mb-2">No wallets detected</p>
-              <p className="text-sm text-gray-500 mb-6">
+              <p className="text-[#e5e7eb] font-semibold mb-2">No wallets detected</p>
+              <p className="text-sm text-[#9ca3af] mb-6">
                 Please install a Polkadot wallet extension
               </p>
               <div className="space-y-3 max-w-xs mx-auto">
                 <a
-                  href="https://polkadot.js.org/extension/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block p-3 border-2 border-gray-200 rounded-lg hover:border-[#e6007a] hover:bg-rose-50 transition-all"
-                >
-                  <p className="font-semibold text-[#e6007a]">Polkadot.js Extension</p>
-                  <p className="text-xs text-gray-500">Official Polkadot wallet</p>
-                </a>
-                <a
                   href="https://www.subwallet.app/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block p-3 border-2 border-gray-200 rounded-lg hover:border-[#e6007a] hover:bg-rose-50 transition-all"
+                  className="flex items-center justify-between p-4 bg-[#11131a] border border-[#1f2430] rounded-lg hover:border-[#e6007a] hover:bg-[#1a1d26] transition-all group"
                 >
-                  <p className="font-semibold text-[#e6007a]">SubWallet</p>
-                  <p className="text-xs text-gray-500">Multi-chain wallet</p>
+                  <div className="text-left">
+                    <p className="font-semibold text-[#e5e7eb] group-hover:text-[#e6007a] transition-colors">SubWallet</p>
+                    <p className="text-xs text-[#9ca3af]">Recommended multi-chain wallet</p>
+                  </div>
+                  <ExternalLink className="w-4 h-4 text-[#9ca3af] group-hover:text-[#e6007a]" />
                 </a>
                 <a
                   href="https://talisman.xyz/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block p-3 border-2 border-gray-200 rounded-lg hover:border-[#e6007a] hover:bg-rose-50 transition-all"
+                  className="flex items-center justify-between p-4 bg-[#11131a] border border-[#1f2430] rounded-lg hover:border-[#e6007a] hover:bg-[#1a1d26] transition-all group"
                 >
-                  <p className="font-semibold text-[#e6007a]">Talisman</p>
-                  <p className="text-xs text-gray-500">Beautiful Polkadot wallet</p>
+                  <div className="text-left">
+                    <p className="font-semibold text-[#e5e7eb] group-hover:text-[#e6007a] transition-colors">Talisman</p>
+                    <p className="text-xs text-[#9ca3af]">Beautiful Polkadot wallet</p>
+                  </div>
+                  <ExternalLink className="w-4 h-4 text-[#9ca3af] group-hover:text-[#e6007a]" />
+                </a>
+                <a
+                  href="https://polkadot.js.org/extension/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between p-4 bg-[#11131a] border border-[#1f2430] rounded-lg hover:border-[#e6007a] hover:bg-[#1a1d26] transition-all group"
+                >
+                  <div className="text-left">
+                    <p className="font-semibold text-[#e5e7eb] group-hover:text-[#e6007a] transition-colors">Polkadot.js</p>
+                    <p className="text-xs text-[#9ca3af]">Official extension</p>
+                  </div>
+                  <ExternalLink className="w-4 h-4 text-[#9ca3af] group-hover:text-[#e6007a]" />
                 </a>
               </div>
             </div>
@@ -144,11 +166,12 @@ export function WalletConnect({ onClose, onConnect }: WalletConnectProps) {
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t-2 border-rose-100 bg-gradient-to-r from-rose-50 to-pink-50 rounded-b-2xl">
-          <p className="text-xs text-gray-500 text-center">
-            By connecting your wallet, you agree to our{' '}
-            <span className="text-[#e6007a] font-medium">Terms of Service</span> and{' '}
-            <span className="text-[#e6007a] font-medium">Privacy Policy</span>.
+        <div className="p-6 border-t border-[#1f2430]">
+          <p className="text-xs text-[#9ca3af] text-center">
+            By connecting, you agree to our{' '}
+            <span className="text-[#e6007a] font-medium cursor-pointer hover:underline">Terms of Service</span>
+            {' '}and{' '}
+            <span className="text-[#e6007a] font-medium cursor-pointer hover:underline">Privacy Policy</span>
           </p>
         </div>
       </div>

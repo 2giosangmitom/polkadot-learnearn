@@ -44,9 +44,6 @@ async function ensureExtensionEnabled() {
 // Paseo Asset Hub RPC - multiple official endpoints for fallback
 export const RPC_ENDPOINTS = [
   'wss://sys.ibp.network/asset-hub-paseo',
-  'wss://paseo-asset-hub.rpc.amforc.com',
-  'wss://rpc-asset-hub-paseo.luckyfriday.io',
-  'wss://asset-hub-paseo.dotters.network',
 ];
 
 let api: ApiPromise | null = null;

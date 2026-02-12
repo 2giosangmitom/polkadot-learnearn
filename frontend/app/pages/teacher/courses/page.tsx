@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { CourseCard } from '@/components/course/CourseCard';
+import { Layout } from '@/components/Layout';
 import { useWallet } from '@/lib/hooks/useWallet';
 import { Lesson } from '@/types/course';
 
@@ -66,12 +67,12 @@ export default function TeacherCoursesPage() {
   }, [address, isConnected]);
 
   return (
-    <main className="min-h-screen bg-slate-950 p-8">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <Layout userRole="teacher">
+      <div className="space-y-6">
         <header className="space-y-2">
-          <p className="text-sm uppercase tracking-[0.16em] text-slate-400">Teacher workspace</p>
-          <h1 className="text-3xl font-bold text-slate-50">Your created courses</h1>
-          <p className="text-slate-300">Connect your teacher wallet to view and drill into lessons.</p>
+          <p className="text-sm uppercase tracking-[0.16em] text-neutral-400">Teacher workspace</p>
+          <h1 className="text-3xl font-bold text-white">Your created courses</h1>
+          <p className="text-neutral-300">Connect your teacher wallet to view and drill into lessons.</p>
         </header>
 
         {!isConnected && (
@@ -164,6 +165,6 @@ export default function TeacherCoursesPage() {
           </div>
         )}
       </div>
-    </main>
+    </Layout>
   );
 }

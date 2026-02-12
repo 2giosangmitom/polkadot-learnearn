@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAccount } from '@luno-kit/react';
+import { useAccount, useAccounts } from '@luno-kit/react';
 import { Wallet } from 'lucide-react';
 import { WalletConnect } from './WalletConnect';
 import { WalletInfo } from './WalletInfo';
@@ -30,6 +30,7 @@ interface WalletButtonProps {
 
 export function WalletButton({ onConnect, className = '' }: WalletButtonProps) {
   const { address } = useAccount();
+  const { accounts } = useAccounts();
   const [showModal, setShowModal] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
@@ -38,49 +39,42 @@ export function WalletButton({ onConnect, className = '' }: WalletButtonProps) {
   const [formRole, setFormRole] = useState<'student' | 'teacher'>('student');
   const [saving, setSaving] = useState(false);
 
-  // When address changes, ensure profile exists in Supabase (create if missing)
+  // Fetch profile when address changes
   useEffect(() => {
     let abort = false;
-    async function ensureProfile(wallet: string) {
+    async function fetchProfile(wallet: string) {
       setLoadingProfile(true);
       try {
-        // 1) Try to fetch existing
         const res = await fetch(`/api/users?wallet_address=${encodeURIComponent(wallet)}`);
-        let user: UserProfile | null = null;
         if (res.ok) {
           const data = await res.json();
-          user = data?.user || null;
-        }
-
-        // 2) If not found, create
-        if (!user) {
-          const createRes = await fetch('/api/users', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ wallet_address: wallet, role: 1 }),
-          });
-          if (!createRes.ok) {
-            const body = await createRes.json().catch(() => ({}));
-            throw new Error(body.error || 'Failed to create user');
+          const user = data?.user || null;
+          if (!abort) {
+            if (user) {
+              setProfile(user);
+              setFormDisplayName(user?.display_name || '');
+              setFormRole(roleToLabel(user?.role));
+            } else {
+              setProfile(null);
+              setFormDisplayName('');
+              setFormRole('student');
+            }
           }
-          const body = await createRes.json();
-          user = body?.user || null;
-        }
-
-        if (!abort) {
-          setProfile(user);
-          setFormDisplayName(user?.display_name || '');
-          setFormRole(roleToLabel(user?.role));
         }
       } catch (err) {
         console.error('Fetch profile failed', err);
+        if (!abort) {
+          setProfile(null);
+          setFormDisplayName('');
+          setFormRole('student');
+        }
       } finally {
         if (!abort) setLoadingProfile(false);
       }
     }
 
     if (address) {
-      ensureProfile(address);
+      fetchProfile(address);
     } else {
       setProfile(null);
       setEditing(false);
@@ -98,6 +92,7 @@ export function WalletButton({ onConnect, className = '' }: WalletButtonProps) {
       <div className="space-y-3">
         <WalletInfo 
           address={address}
+          accounts={accounts}
           displayName={profile?.display_name || undefined}
           role={roleToLabel(profile?.role)}
           onConnect={onConnect}
@@ -106,47 +101,51 @@ export function WalletButton({ onConnect, className = '' }: WalletButtonProps) {
         />
 
         {editing && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4">
-              <div className="flex items-center justify-between">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+            <div className="bg-[#0f1117] border border-[#1f2430] rounded-xl shadow-2xl max-w-lg w-full p-6 space-y-4 animate-slideUp">
+              <div className="flex items-center justify-between pb-4 border-b border-[#1f2430]">
                 <div>
-                  <p className="text-xs text-gray-500">Connected</p>
-                  <p className="text-sm font-semibold break-all">{address}</p>
+                  <h3 className="text-lg font-semibold text-[#e5e7eb]">Edit Profile</h3>
+                  <p className="text-xs text-[#9ca3af] mt-0.5 break-all">{address}</p>
                 </div>
-                {loadingProfile && <span className="text-xs text-gray-500">Loading...</span>}
+                {loadingProfile && (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#e6007a]"></div>
+                )}
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Display name</label>
-                <input
-                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-rose-200"
-                  placeholder="How should we call you?"
-                  value={formDisplayName}
-                  onChange={(e) => setFormDisplayName(e.target.value)}
-                />
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-[#e5e7eb]">Display Name</label>
+                  <input
+                    className="w-full bg-[#11131a] border border-[#1f2430] rounded-lg px-4 py-2.5 text-[#e5e7eb] placeholder-[#9ca3af] focus:outline-none focus:ring-2 focus:ring-[#e6007a] focus:border-transparent transition-all"
+                    placeholder="How should we call you?"
+                    value={formDisplayName}
+                    onChange={(e) => setFormDisplayName(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-[#e5e7eb]">Role</label>
+                  <select
+                    className="w-full bg-[#11131a] border border-[#1f2430] rounded-lg px-4 py-2.5 text-[#e5e7eb] focus:outline-none focus:ring-2 focus:ring-[#e6007a] focus:border-transparent transition-all"
+                    value={formRole}
+                    onChange={(e) => setFormRole(e.target.value as 'student' | 'teacher')}
+                  >
+                    <option value="student">Student</option>
+                    <option value="teacher">Teacher</option>
+                  </select>
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Role</label>
-                <select
-                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-rose-200"
-                  value={formRole}
-                  onChange={(e) => setFormRole(e.target.value as 'student' | 'teacher')}
-                >
-                  <option value="student">Student</option>
-                  <option value="teacher">Teacher</option>
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
+              <div className="flex justify-end gap-3 pt-4 border-t border-[#1f2430]">
                 <button
-                  className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
+                  className="px-4 py-2 text-sm text-[#9ca3af] hover:text-[#e5e7eb] hover:bg-[#1a1d26] rounded-lg transition-all"
                   onClick={() => setEditing(false)}
                 >
                   Cancel
                 </button>
                 <button
-                  className="px-4 py-2 text-sm bg-[#e6007a] text-white rounded-lg hover:bg-[#cc006c] disabled:opacity-50"
+                  className="px-4 py-2 text-sm bg-[#e6007a] text-white rounded-lg hover:bg-[#cc006c] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                   onClick={async () => {
                     if (!address) return;
                     setSaving(true);
@@ -176,7 +175,7 @@ export function WalletButton({ onConnect, className = '' }: WalletButtonProps) {
                   }}
                   disabled={saving}
                 >
-                  {saving ? 'Saving...' : 'Save'}
+                  {saving ? 'Saving...' : 'Save Profile'}
                 </button>
               </div>
             </div>
@@ -190,9 +189,9 @@ export function WalletButton({ onConnect, className = '' }: WalletButtonProps) {
     <>
       <button
         onClick={() => setShowModal(true)}
-        className={`flex items-center gap-2 bg-[#e6007a] hover:bg-[#cc006c] text-white px-6 py-2.5 rounded-lg font-medium transition-colors shadow-sm ${className}`}
+        className={`group flex items-center gap-2.5 bg-[#e6007a] hover:bg-[#cc006c] text-white px-5 py-2.5 rounded-lg font-medium transition-all shadow-sm hover:shadow-md ${className}`}
       >
-        <Wallet className="w-5 h-5" />
+        <Wallet className="w-5 h-5 group-hover:scale-110 transition-transform" />
         Connect Wallet
       </button>
 

@@ -14,7 +14,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 export async function GET() {
   const { data, error } = await supabase
     .from('course')
-    .select('id, title, description, cost') // 🔥 CHỈ DATA PUBLIC
+    .select('id, title, description, cost')
     .order('created_at', { ascending: false });
 
   if (error) {
