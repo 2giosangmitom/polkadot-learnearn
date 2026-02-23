@@ -9,7 +9,7 @@ import { Card, Button, Badge } from '@/components/SharedUI';
 import { EnrollButton } from './enroll-button';
 import { BookOpen, Clock, Award } from 'lucide-react';
 
-export default function CourseDetailPage({ params }: { params: { id: string } }) {
+export default function CourseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const { address, isConnected } = useWallet();
   const [course, setCourse] = useState<Course | null>(null);
@@ -131,7 +131,7 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
               {isEnrolled ? (
                 <Button
                   onClick={handleStartLearning}
-                  size=""
+                  // size=""
                   className="bg-green-600 hover:bg-green-700"
                 >
                   Start Learning →

@@ -24,7 +24,7 @@ async function ensureTeacher(walletAddress: string) {
 export async function getCourses() {
   const { data, error } = await supabase
     .from('course')
-    .select('id, title, description, cost, wallet_address, created_at, update_at');
+    .select('id, title, description, cost, wallet_address, thumbnail_url, created_at, update_at');
 
   if (error) {
     throw new Error(`Failed to fetch courses: ${error.message}`);
@@ -49,8 +49,9 @@ export async function getCourseById(id: string) {
   // Fetch lessons separately
   const { data: lessons, error: lessonError } = await supabase
     .from('lesson')
-    .select('*')
-    .eq('course_id', id);
+    .select('id, title, description, video_url, payback_amount, course_id, created_at, update_at')
+    .eq('course_id', id)
+    .order('created_at', { ascending: true });
 
   if (lessonError) {
     console.error('Failed to fetch lessons:', lessonError.message);
@@ -64,7 +65,7 @@ export async function getCoursesByUser(walletAddress: string) {
 
   const { data, error } = await supabase
     .from('course')
-    .select('id, title, description, cost, wallet_address, created_at, update_at')
+    .select('id, title, description, cost, wallet_address, thumbnail_url, created_at, update_at')
     .eq('wallet_address', walletAddress);
 
   if (error) {
@@ -89,8 +90,9 @@ export async function createCourse(
       description: payload.description ?? null,
       cost: payload.cost ?? null,
       wallet_address: payload.wallet_address,
+      thumbnail_url: payload.thumbnail_url ?? null,
     })
-    .select('id, title, description, cost, wallet_address, created_at, update_at')
+    .select('id, title, description, cost, wallet_address, thumbnail_url, created_at, update_at')
     .single();
 
   if (courseError) {
@@ -158,7 +160,7 @@ export async function updateCourse(
       update_at: new Date().toISOString(),
     })
     .eq('id', id)
-    .select('id, title, description, cost, wallet_address, created_at, update_at')
+    .select('id, title, description, cost, wallet_address, thumbnail_url, created_at, update_at')
     .single();
 
   if (error) {

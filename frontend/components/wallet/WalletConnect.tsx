@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useConnect, useAccounts, ConnectionStatus } from '@luno-kit/react';
 import { paseoAssetHub } from '@luno-kit/react/chains';
 import { X, Wallet, ExternalLink } from 'lucide-react';
+import Modal, { useModal } from '@/components/Modal';
 
 interface WalletConnectProps {
   onClose: () => void;
@@ -22,6 +23,7 @@ export function WalletConnect({ onClose, onConnect }: WalletConnectProps) {
   const { connectors, connectAsync, status, isPending } = useConnect();
   const { accounts, selectAccount } = useAccounts();
   const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
+  const { modalState, showModal, hideModal } = useModal();
 
   // Auto-select first account after successful connection
   useEffect(() => {
@@ -55,7 +57,10 @@ export function WalletConnect({ onClose, onConnect }: WalletConnectProps) {
       });
     } catch (error) {
       console.error('❌ Wallet connection failed:', error);
-      alert(error instanceof Error ? error.message : 'Failed to connect wallet');
+      showModal(error instanceof Error ? error.message : 'Unable to connect wallet', {
+        type: 'error',
+        title: 'Connection Error'
+      });
       setSelectedConnectorId(null);
     }
   }
@@ -175,6 +180,18 @@ export function WalletConnect({ onClose, onConnect }: WalletConnectProps) {
           </p>
         </div>
       </div>
+
+      <Modal
+        isOpen={modalState.isOpen}
+        onClose={hideModal}
+        message={modalState.message}
+        title={modalState.title}
+        type={modalState.type}
+        confirmText={modalState.confirmText}
+        showCancel={modalState.showCancel}
+        cancelText={modalState.cancelText}
+        onConfirm={modalState.onConfirm}
+      />
     </div>
   );
 }

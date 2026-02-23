@@ -40,14 +40,40 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Only teachers can view their created courses' }, { status: 403 });
   }
 
+  // Get courses first
   const { data: courses, error } = await supabase
     .from('course')
     .select('id, title, description, cost, wallet_address, created_at, update_at')
-    .eq('wallet_address', wallet);
+    .eq('wallet_address', wallet)
+    .order('created_at', { ascending: false });
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ courses });
+  if (!courses || courses.length === 0) {
+    return NextResponse.json({ courses: [] });
+  }
+
+  // Get lessons for all courses
+  const courseIds = courses.map(c => c.id);
+  const { data: lessons, error: lessonError } = await supabase
+    .from('lesson')
+    .select('id, title, course_id, created_at')
+    .in('course_id', courseIds)
+    .order('created_at', { ascending: true });
+
+  if (lessonError) {
+    console.error('Error fetching lessons:', lessonError);
+    // Return courses without lessons if lesson fetch fails
+    return NextResponse.json({ courses });
+  }
+
+  // Attach lessons to courses
+  const coursesWithLessons = courses.map(course => ({
+    ...course,
+    lessons: lessons?.filter(l => l.course_id === course.id) || []
+  }));
+
+  return NextResponse.json({ courses: coursesWithLessons });
 }

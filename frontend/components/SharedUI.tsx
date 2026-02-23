@@ -84,6 +84,54 @@ export const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(
 );
 Badge.displayName = 'Badge';
 
+// Input Component
+export const Input = React.forwardRef<
+  HTMLInputElement,
+  React.InputHTMLAttributes<HTMLInputElement> & { className?: string }
+>(({ className, ...props }, ref) => (
+  <input
+    ref={ref}
+    className={cn(
+      'w-full px-4 py-2.5 bg-neutral-950 border border-neutral-800 rounded-lg text-white placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all disabled:opacity-50 disabled:cursor-not-allowed',
+      className
+    )}
+    {...props}
+  />
+));
+Input.displayName = 'Input';
+
+// Textarea Component
+export const Textarea = React.forwardRef<
+  HTMLTextAreaElement,
+  React.TextareaHTMLAttributes<HTMLTextAreaElement> & { className?: string }
+>(({ className, ...props }, ref) => (
+  <textarea
+    ref={ref}
+    className={cn(
+      'w-full px-4 py-2.5 bg-neutral-950 border border-neutral-800 rounded-lg text-white placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all disabled:opacity-50 disabled:cursor-not-allowed resize-none',
+      className
+    )}
+    {...props}
+  />
+));
+Textarea.displayName = 'Textarea';
+
+// Label Component
+export const Label = React.forwardRef<
+  HTMLLabelElement,
+  React.LabelHTMLAttributes<HTMLLabelElement> & { className?: string }
+>(({ className, ...props }, ref) => (
+  <label
+    ref={ref}
+    className={cn(
+      'block text-sm font-medium text-neutral-300 mb-2',
+      className
+    )}
+    {...props}
+  />
+));
+Label.displayName = 'Label';
+
 // ProgressBar Component
 interface ProgressBarProps {
   progress: number;

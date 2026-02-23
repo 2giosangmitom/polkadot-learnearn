@@ -3,6 +3,8 @@ import json
 from google import genai
 from google.genai import types
 from typing import TypedDict
+from dotenv import load_dotenv
+load_dotenv()
 
 
 class EvaluationResult(TypedDict):
@@ -17,7 +19,6 @@ def evaluate_milestone(milestone: dict, student_answer: str) -> EvaluationResult
         "expectedCriteria": "..."
     }
     """
-
     api_key = os.getenv("API_KEY")
     if not api_key:
         raise Exception("API Key is not configured. Evaluation unavailable.")

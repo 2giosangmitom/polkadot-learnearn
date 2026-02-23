@@ -5,6 +5,7 @@ import { useAccount, useAccounts } from '@luno-kit/react';
 import { Wallet } from 'lucide-react';
 import { WalletConnect } from './WalletConnect';
 import { WalletInfo } from './WalletInfo';
+import Modal, { useModal } from '@/components/Modal';
 
 interface UserProfile {
   id?: number;
@@ -38,6 +39,7 @@ export function WalletButton({ onConnect, className = '' }: WalletButtonProps) {
   const [formDisplayName, setFormDisplayName] = useState('');
   const [formRole, setFormRole] = useState<'student' | 'teacher'>('student');
   const [saving, setSaving] = useState(false);
+  const { modalState, showModal: showErrorModal, hideModal } = useModal();
 
   // Fetch profile when address changes
   useEffect(() => {
@@ -168,7 +170,10 @@ export function WalletButton({ onConnect, className = '' }: WalletButtonProps) {
                       setEditing(false);
                     } catch (err) {
                       console.error('Save profile failed', err);
-                      alert(err instanceof Error ? err.message : 'Save failed');
+                      showErrorModal(err instanceof Error ? err.message : 'Unable to save information', {
+                        type: 'error',
+                        title: 'Error'
+                      });
                     } finally {
                       setSaving(false);
                     }
@@ -181,6 +186,18 @@ export function WalletButton({ onConnect, className = '' }: WalletButtonProps) {
             </div>
           </div>
         )}
+
+        <Modal
+          isOpen={modalState.isOpen}
+          onClose={hideModal}
+          message={modalState.message}
+          title={modalState.title}
+          type={modalState.type}
+          confirmText={modalState.confirmText}
+          showCancel={modalState.showCancel}
+          cancelText={modalState.cancelText}
+          onConfirm={modalState.onConfirm}
+        />
       </div>
     );
   }
@@ -201,6 +218,18 @@ export function WalletButton({ onConnect, className = '' }: WalletButtonProps) {
           onConnect={onConnect}
         />
       )}
+
+      <Modal
+        isOpen={modalState.isOpen}
+        onClose={hideModal}
+        message={modalState.message}
+        title={modalState.title}
+        type={modalState.type}
+        confirmText={modalState.confirmText}
+        showCancel={modalState.showCancel}
+        cancelText={modalState.cancelText}
+        onConfirm={modalState.onConfirm}
+      />
     </>
   );
 }

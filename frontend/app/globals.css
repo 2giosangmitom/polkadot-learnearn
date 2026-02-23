@@ -123,6 +123,17 @@
   }
 }
 
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .animate-fadeIn {
   animation: fadeIn 0.3s ease-out;
 }
@@ -135,8 +146,82 @@
   animation: slideUp 0.3s ease-out;
 }
 
+.anim-fade-in-up {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+.card-hover {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.14);
+}
+
+.img-zoom {
+  transition: transform 0.4s ease;
+}
+
+.card-hover:hover .img-zoom {
+  transform: scale(1.05);
+}
+
+/* Toggle Switch */
+.toggle-bg {
+  transition: background-color 0.2s ease;
+}
+
+input:checked ~ .toggle-bg {
+  background-color: rgb(79, 70, 229);
+}
+
+input:checked ~ .toggle-bg .toggle-dot {
+  transform: translateX(20px);
+  border-color: rgb(79, 70, 229);
+}
+
+.toggle-dot {
+  transition: transform 0.2s ease;
+}
+
+.icon-hover-red {
+  transition: all 0.2s ease;
+}
+
+.icon-hover-red:hover {
+  background-color: rgb(127, 29, 29) !important;
+  color: rgb(248, 113, 113);
+}
+
 html {
   background: linear-gradient(135deg, #faf8f3 0%, #f5ede0 100%);
+}
+
+/* Custom scrollbar styles */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: rgb(23, 23, 23);
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgb(64, 64, 64);
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgb(82, 82, 82);
+}
+
+/* Firefox scrollbar */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(64, 64, 64) rgb(23, 23, 23);
 }
 
 /* Original body styles are now handled by @layer base */

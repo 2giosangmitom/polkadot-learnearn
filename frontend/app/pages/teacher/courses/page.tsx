@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CourseCard } from '@/components/course/CourseCard';
+import { useRouter } from 'next/navigation';
 import { Layout } from '@/components/Layout';
+import { Card, Button, Badge } from '@/components/SharedUI';
+import { PencilIcon } from '@/components/Icons';
 import { useWallet } from '@/lib/hooks/useWallet';
 import { Lesson } from '@/types/course';
 
@@ -12,20 +14,18 @@ type CourseWithLessons = {
   description: string | null;
   cost: number | null;
   wallet_address?: string | null;
+  thumbnail_url?: string | null;
   created_at: string;
   update_at: string | null;
   lesson?: Lesson[];
 };
 
 export default function TeacherCoursesPage() {
+  const router = useRouter();
   const { address, isConnected } = useWallet();
   const [courses, setCourses] = useState<CourseWithLessons[]>([]);
-  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
-  const [selectedCourseLessons, setSelectedCourseLessons] = useState<Lesson[]>([]);
   const [loading, setLoading] = useState(false);
-  const [loadingLessons, setLoadingLessons] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lessonError, setLessonError] = useState<string | null>(null);
 
   useEffect(() => {
     let abort = false;
@@ -57,8 +57,6 @@ export default function TeacherCoursesPage() {
       fetchCourses(address);
     } else {
       setCourses([]);
-      setSelectedCourseId(null);
-      setSelectedCourseLessons([]);
     }
 
     return () => {
@@ -66,102 +64,107 @@ export default function TeacherCoursesPage() {
     };
   }, [address, isConnected]);
 
+  const handleCreateCourse = () => {
+    router.push('/pages/teacher/create');
+  };
+
+  const handleEditCourse = (courseId: string) => {
+    router.push(`/pages/teacher/create?id=${courseId}`);
+  };
+
   return (
     <Layout userRole="teacher">
-      <div className="space-y-6">
-        <header className="space-y-2">
-          <p className="text-sm uppercase tracking-[0.16em] text-neutral-400">Teacher workspace</p>
-          <h1 className="text-3xl font-bold text-white">Your created courses</h1>
-          <p className="text-neutral-300">Connect your teacher wallet to view and drill into lessons.</p>
-        </header>
+      <div className="anim-fade-in-up">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+          <div>
+            <h1 className="text-3xl font-extrabold text-white tracking-tight">Teacher Workspace</h1>
+            <p className="text-neutral-400 mt-2 text-lg">Manage your curriculum and empower the next generation.</p>
+          </div>
+          {isConnected && (
+            <Button onClick={handleCreateCourse} className="flex items-center py-2.5 px-5">
+              <span className="mr-2 text-xl leading-none font-light">+</span> Create New Course
+            </Button>
+          )}
+        </div>
 
         {!isConnected && (
-          <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-900 p-6 text-center text-slate-200">
-            Please connect your teacher wallet to view created courses.
+          <div className="text-center py-24 bg-neutral-900/50 rounded-2xl border border-neutral-800 border-dashed">
+            <h3 className="text-xl font-bold text-white mb-2">Connect your wallet</h3>
+            <p className="text-neutral-400 mb-8">Please connect your teacher wallet to view and manage your courses.</p>
           </div>
         )}
 
         {isConnected && loading && (
-          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 text-center text-slate-200">Loading courses...</div>
+          <div className="text-center py-24 bg-neutral-900/50 rounded-2xl border border-neutral-800">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+            <p className="text-neutral-400 mt-4">Loading your courses...</p>
+          </div>
         )}
 
         {isConnected && error && (
-          <div className="rounded-2xl border border-red-500/40 bg-red-900/50 p-6 text-red-100">{error}</div>
+          <div className="rounded-2xl border border-red-500/40 bg-red-900/50 p-6 text-red-100">
+            <h3 className="font-bold mb-2">Error loading courses</h3>
+            <p>{error}</p>
+          </div>
         )}
 
         {isConnected && !loading && !error && courses.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-900 p-6 text-center text-slate-200">
-            You have not created any courses yet.
+          <div className="text-center py-24 bg-neutral-900/50 rounded-2xl border border-neutral-800 border-dashed">
+            <h3 className="text-xl font-bold text-white mb-2">Your workspace is empty.</h3>
+            <p className="text-neutral-400 mb-8">Start sharing your Web3 knowledge today to earn and build your reputation.</p>
+            <Button onClick={handleCreateCourse} className="px-6 py-3">Create Your First Course</Button>
           </div>
         )}
 
         {isConnected && !loading && !error && courses.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-              {courses.map((course) => {
-                const isSelected = selectedCourseId === course.id;
-                return (
-                  <button
-                    key={course.id}
-                    onClick={async () => {
-                      if (selectedCourseId === course.id && selectedCourseLessons.length > 0) {
-                        return;
-                      }
-                      setSelectedCourseId(course.id);
-                      setLessonError(null);
-                      setLoadingLessons(true);
-                      try {
-                        const res = await fetch(`/api/courses/${course.id}`);
-                        const body = await res.json();
-                        if (!res.ok) throw new Error(body.error || 'Failed to load lessons');
-                        setSelectedCourseLessons(body.course?.lesson || []);
-                      } catch (err) {
-                        setLessonError((err as Error).message);
-                        setSelectedCourseLessons([]);
-                      } finally {
-                        setLoadingLessons(false);
-                      }
-                    }}
-                    className={`text-left w-full rounded-2xl transition ring-offset-2 ${isSelected ? 'ring-2 ring-indigo-400 ring-offset-slate-950' : 'hover:ring-1 hover:ring-slate-700'}`}
-                  >
-                    <CourseCard course={course} />
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5 space-y-3 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.12em] text-slate-400">Lessons</p>
-                  <h2 className="text-lg font-semibold text-slate-50">Selected course</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+            {courses.map((course) => (
+              <Card key={course.id} className="card-hover flex flex-col sm:flex-row overflow-hidden">
+                <div className="w-full sm:w-48 h-48 sm:h-auto bg-neutral-800 flex-shrink-0 relative">
+                  {course.thumbnail_url ? (
+                    <img 
+                      src={course.thumbnail_url} 
+                      alt={course.title || 'Course thumbnail'}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                        target.nextElementSibling?.classList.remove('hidden');
+                      }}
+                    />
+                  ) : null}
+                  <div className={`w-full h-full flex items-center justify-center bg-gradient-to-br from-neutral-800 to-neutral-900 ${course.thumbnail_url ? 'hidden absolute inset-0' : ''}`}>
+                    <div className="text-6xl opacity-20">📚</div>
+                  </div>
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent to-neutral-900 hidden sm:block pointer-events-none"></div>
                 </div>
-                {selectedCourseId && (
-                  <span className="text-xs px-2 py-1 rounded-full bg-indigo-900/50 text-indigo-100 border border-indigo-500/40">
-                    {selectedCourseLessons.length} total
-                  </span>
-                )}
-              </div>
-
-              {!selectedCourseId && <p className="text-sm text-slate-300">Pick a course to view its lessons.</p>}
-              {selectedCourseId && loadingLessons && <p className="text-sm text-slate-300">Loading lessons...</p>}
-              {selectedCourseId && lessonError && (
-                <p className="text-sm text-red-300">{lessonError}</p>
-              )}
-              {selectedCourseId && !loadingLessons && !lessonError && selectedCourseLessons.length === 0 && (
-                <p className="text-sm text-slate-300">No lessons found for this course.</p>
-              )}
-              {selectedCourseId && !loadingLessons && !lessonError && selectedCourseLessons.length > 0 && (
-                <ul className="space-y-2">
-                  {selectedCourseLessons.map((lesson) => (
-                    <li key={lesson.id} className="border border-slate-800 rounded-xl p-3 bg-slate-950">
-                      <div className="font-semibold text-slate-50">{lesson.title || 'Lesson'}</div>
-                      {lesson.description && <p className="text-sm text-slate-300 mt-1">{lesson.description}</p>}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+                <div className="p-6 flex-1 flex flex-col justify-between relative z-10 bg-neutral-900">
+                  <div>
+                    <div className="flex justify-between items-start mb-3 gap-2">
+                      <h3 className="text-xl font-bold text-white line-clamp-1">{course.title || 'Untitled Course'}</h3>
+                      <Badge variant="primary">{course.cost || 0} PAS</Badge>
+                    </div>
+                    <p className="text-sm text-neutral-400 line-clamp-2 mb-4 leading-relaxed">
+                      {course.description || 'No description available'}
+                    </p>
+                    <div className="text-xs font-medium text-neutral-500 uppercase tracking-wider flex items-center space-x-2">
+                      <span className="bg-neutral-800 px-2 py-1 rounded">
+                        {course.lesson?.length || 0} Lessons
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mt-6 flex space-x-3 pt-4 border-t border-neutral-800">
+                    <Button 
+                      variant="outline" 
+                      className="text-sm py-2 px-4 flex items-center w-full sm:w-auto"
+                      onClick={() => handleEditCourse(course.id)}
+                    >
+                      <PencilIcon className="w-4 h-4 mr-2" /> Edit Curriculum
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ))}
           </div>
         )}
       </div>

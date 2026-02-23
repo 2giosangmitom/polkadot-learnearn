@@ -1,7 +1,10 @@
 export type Milestone = {
   id: string;
   title: string;
+  question: string;         // Added for test view
+  expectedCriteria: string; // Added for AI evaluation
   rewardTokens: number;
+  rewardPAS?: number;       // Alternate name used in UI
   keywords: string[];
   expectedAnswer?: string;
 };
@@ -15,6 +18,7 @@ export type Lesson = {
   course_id: string | null;
   created_at: string;
   update_at: string | null;
+  milestone?: Milestone | null; // Added relation
 };
 
 export type Course = {
@@ -23,6 +27,7 @@ export type Course = {
   description: string | null;
   cost: number | null;
   wallet_address?: string | null;
+  thumbnail_url?: string | null;
   created_at: string;
   update_at: string | null;
   lessons?: Lesson[];
@@ -32,6 +37,7 @@ export type CreateCourseInput = {
   title: string;
   description?: string;
   cost?: number | null;
+  thumbnail_url?: string | null;
 };
 
 export type CreateLessonInput = {

@@ -6,6 +6,7 @@ import { Layout } from '@/components/Layout';
 import { Course } from '@/types/course';
 import { useWallet } from '@/lib/hooks';
 import { Card, Button, Badge } from '@/components/SharedUI';
+import Modal, { useModal } from '@/components/Modal';
 
 export default function CourseMarketplace() {
 	const router = useRouter();
@@ -13,6 +14,7 @@ export default function CourseMarketplace() {
 	const [availableCourses, setAvailableCourses] = useState<Course[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [processingPurchase, setProcessingPurchase] = useState<string | null>(null);
+	const { modalState, showModal, hideModal } = useModal();
 
 	useEffect(() => {
 		let abort = false;
@@ -66,8 +68,13 @@ export default function CourseMarketplace() {
 
 	const handleBuyCourse = async (course: Course) => {
 		if (!isConnected || !address) {
-			alert('Please connect your wallet first.');
-			router.push('/pages/login');
+			showModal('Please connect your wallet first.', {
+				type: 'warning',
+				title: 'Wallet Not Connected',
+				onConfirm: () => {
+					router.push('/pages/login');
+				}
+			});
 			return;
 		}
 
@@ -118,18 +125,25 @@ export default function CourseMarketplace() {
 					}),
 				});
 
-				if (verifyRes.ok) {
-					const verifyData = await verifyRes.json();
-					if (verifyData.success) {
-						console.log('✅ Enrolled successfully!');
-						alert('✅ Enrollment successful! Redirecting to course...');
-						router.push(`/pages/student/course/${course.id}`);
-						return;
-					}
+				const verifyData = await verifyRes.json();
+
+				if (!verifyRes.ok) {
+					throw new Error(verifyData.error || verifyData.message || 'Failed to verify payment');
 				}
 
-				const errBody = await verifyRes.json().catch(() => ({}));
-				throw new Error(errBody.error || 'Failed to verify payment');
+				if (verifyData.success) {
+					console.log('✅ Enrolled successfully!');
+					showModal('Course enrollment successful!', {
+						type: 'success',
+						title: 'Success',
+						onConfirm: () => {
+							router.push(`/pages/student/course/${course.id}`);
+						}
+					});
+					return;
+				}
+
+				throw new Error(verifyData.error || verifyData.message || 'Enrollment failed');
 			}
 
 			// Handle other responses
@@ -142,13 +156,21 @@ export default function CourseMarketplace() {
 			const data = await res.json();
 			if (data.success) {
 				console.log('✅ Enrolled successfully!');
-				alert('✅ Enrollment successful! Redirecting to course...');
-				router.push(`/pages/student/course/${course.id}`);
+				showModal('Course enrollment successful!', {
+					type: 'success',
+					title: 'Success',
+					onConfirm: () => {
+						router.push(`/pages/student/course/${course.id}`);
+					}
+				});
 			}
 		} catch (error) {
 			console.error('Enrollment error:', error);
 			const errorMsg = (error as Error).message;
-			alert(`❌ ${errorMsg}`);
+			showModal(errorMsg, {
+				type: 'error',
+				title: 'Enrollment Error'
+			});
 		} finally {
 			setProcessingPurchase(null);
 		}
@@ -208,6 +230,18 @@ export default function CourseMarketplace() {
 					</div>
 				)}
 			</div>
+
+			<Modal
+				isOpen={modalState.isOpen}
+				onClose={hideModal}
+				message={modalState.message}
+				title={modalState.title}
+				type={modalState.type}
+				confirmText={modalState.confirmText}
+				showCancel={modalState.showCancel}
+				cancelText={modalState.cancelText}
+				onConfirm={modalState.onConfirm}
+			/>
 		</Layout>
 	);
 }

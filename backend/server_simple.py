@@ -3,6 +3,7 @@ import os
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from pypolkadot import LightClient
+from ai_agent import evaluate_milestone
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for frontend requests
@@ -235,6 +236,40 @@ def get_block_hash_from_tx_via_events(tx_hash: str, max_blocks: int = 30) -> str
     
     print(f"[TX->BLOCK v2] Not found in {max_blocks} blocks")
     return None
+
+
+@app.route("/evaluate", methods=["POST"])
+def evaluate_answer():
+    """Evaluate a student's answer for a milestone."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "JSON body required"}), 400
+            
+        milestone = data.get("milestone")
+        answer = data.get("answer")
+        
+        if not milestone or not answer:
+            return jsonify({"error": "milestone and answer are required"}), 400
+            
+        print(f"[EVALUATE] Milestone: {milestone.get('question')[:30]}...")
+        print(f"[EVALUATE] Answer: {answer[:30]}...")
+        
+        if not milestone.get('question') or not milestone.get('expectedCriteria'):
+            # Fallback for old milestone format or missing fields
+             return jsonify({
+                 "pass": True,
+                 "feedback": "Auto-passed due to missing milestone criteria."
+             })
+
+        result = evaluate_milestone(milestone, answer)
+        print(f"[EVALUATE] Result: {result}")
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        print(f"[EVALUATE] Error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/verify", methods=["POST"])

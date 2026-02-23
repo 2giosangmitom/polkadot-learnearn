@@ -50,7 +50,7 @@ let api: ApiPromise | null = null;
 let currentEndpoint: string | null = null;
 
 /**
- * Kết nối đến Polkadot node với fallback endpoints
+ * Connect to Polkadot node with fallback endpoints
  */
 export async function getPolkadotApi(): Promise<ApiPromise> {
   if (api && api.isConnected) return api;
@@ -103,7 +103,7 @@ export async function getPolkadotApi(): Promise<ApiPromise> {
 }
 
 /**
- * Kết nối ví Polkadot.js extension
+ * Connect Polkadot.js extension wallet
  */
 export async function connectWallet() {
   const { web3Accounts } = await getExtensionApi();
@@ -122,7 +122,7 @@ export async function connectWallet() {
 }
 
 /**
- * Lấy balance của account (in PAS - Paseo tokens)
+ * Get account balance (in PAS - Paseo tokens)
  */
 export async function getBalance(address: string): Promise<string> {
   const api = await getPolkadotApi();
@@ -135,7 +135,7 @@ export async function getBalance(address: string): Promise<string> {
 }
 
 /**
- * Gửi payment transaction
+ * Send payment transaction
  * Returns object with both transactionHash and blockHash for verification
  */
 export async function sendPayment(
@@ -178,7 +178,7 @@ export async function sendPayment(
 }
 
 /**
- * Format địa chỉ Polkadot (hiển thị ngắn gọn)
+ * Format Polkadot address (display in short form)
  */
 export function formatAddress(address: string): string {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;

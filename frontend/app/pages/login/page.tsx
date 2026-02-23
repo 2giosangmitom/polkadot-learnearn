@@ -6,12 +6,14 @@ import { Card, Button } from '@/components/SharedUI';
 import { WalletButton } from '@/components/wallet';
 import { useWallet } from '@/lib/hooks';
 import { BookOpen, GraduationCap, Sparkles } from 'lucide-react';
+import Modal, { useModal } from '@/components/Modal';
 
 export default function LoginPage() {
   const router = useRouter();
   const { address, isConnected } = useWallet();
   const [selectedRole, setSelectedRole] = useState<'student' | 'teacher' | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const { modalState, showModal, hideModal } = useModal();
 
   // Check if user already has a role set (optional: auto-redirect)
   // Commented out to prevent auto-redirect on wallet connect
@@ -85,7 +87,10 @@ export default function LoginPage() {
       }
     } catch (error) {
       console.error('Error:', error);
-      alert('Failed to continue. Please try again.');
+      showModal('Unable to continue. Please try again.', {
+        type: 'error',
+        title: 'Error'
+      });
     } finally {
       setIsLoading(false);
     }
@@ -211,6 +216,18 @@ export default function LoginPage() {
           </p>
         </div>
       </div>
+
+      <Modal
+        isOpen={modalState.isOpen}
+        onClose={hideModal}
+        message={modalState.message}
+        title={modalState.title}
+        type={modalState.type}
+        confirmText={modalState.confirmText}
+        showCancel={modalState.showCancel}
+        cancelText={modalState.cancelText}
+        onConfirm={modalState.onConfirm}
+      />
     </div>
   );
 }

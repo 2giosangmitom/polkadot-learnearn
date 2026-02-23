@@ -11,15 +11,49 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
-export async function GET() {
-  const { data, error } = await supabase
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id: courseId } = await params;
+
+  if (!courseId) {
+    return NextResponse.json({ error: 'Course ID is required' }, { status: 400 });
+  }
+
+  // Fetch course
+  const { data: course, error } = await supabase
     .from('course')
-    .select('id, title, description, cost')
-    .order('created_at', { ascending: false });
+    .select('id, title, description, cost, thumbnail_url, wallet_address, created_at, update_at')
+    .eq('id', courseId)
+    .single();
 
   if (error) {
+    console.error('Error fetching course:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ courses: data });
+  if (!course) {
+    return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+  }
+
+  // Fetch lessons separately
+  const { data: lessons, error: lessonError } = await supabase
+    .from('lesson')
+    .select('id, title, description, video_url, payback_amount, course_id, created_at, update_at')
+    .eq('course_id', courseId)
+    .order('created_at', { ascending: true });
+
+  if (lessonError) {
+    console.error('Error fetching lessons:', lessonError);
+    // Return course without lessons if lesson fetch fails
+    return NextResponse.json({ courses: { ...course, lessons: [] } });
+  }
+
+  return NextResponse.json({ 
+    courses: {
+      ...course,
+      lessons: lessons || []
+    }
+  });
 }

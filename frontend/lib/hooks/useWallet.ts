@@ -3,7 +3,7 @@
 import { useAccount, useBalance, useConnect, useDisconnect } from '@luno-kit/react';
 
 /**
- * Custom hook để quản lý wallet state và actions
+ * Custom hook to manage wallet state and actions
  */
 export function useWallet() {
   const { address, account } = useAccount();

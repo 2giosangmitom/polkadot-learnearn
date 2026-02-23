@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { CoursePurchaseStatus } from '@/types/course';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -31,6 +32,7 @@ export async function POST(
       );
     }
 
+    // Get course details
     const { data: course, error: courseError } = await supabase
       .from('course')
       .select('id, title, description, cost, wallet_address')
@@ -44,50 +46,53 @@ export async function POST(
       );
     }
 
-    // const { data: existingEnrollment } = await supabase
-    //   .from('course_purchase')
-    //   .select('id')
-    //   .eq('course_id', courseId)
-    //   .eq('student_wallet', walletAddress)
-    //   .single();
+    // Get or create user from wallet address
+    let { data: user, error: userError } = await supabase
+      .from('user')
+      .select('id')
+      .eq('wallet_address', walletAddress)
+      .maybeSingle();
 
-    // if (existingEnrollment) {
-    //   return NextResponse.json({
-    //     success: true,
-    //     message: 'Already enrolled',
-    //     courseId,
-    //   });
-    // }
+    if (userError) {
+      return NextResponse.json(
+        { error: 'Failed to get user', details: userError.message },
+        { status: 500 }
+      );
+    }
 
-    // If course is free, enroll directly without payment
-    // if (!course.cost || course.cost === 0) {
-    //   const { error: enrollError } = await supabase
-    //     .from('enrollment')
-    //     .insert({
-    //       course_id: courseId,
-    //       student_wallet: walletAddress,
-    //       tx_hash: null,
-    //       amount_paid: 0,
-    //     });
+    // If user doesn't exist, create them as a student (role = 1)
+    if (!user) {
+      const { data: newUser, error: createError } = await supabase
+        .from('user')
+        .insert({ wallet_address: walletAddress, role: 1 })
+        .select('id')
+        .single();
 
-    //   if (enrollError) {
-    //     console.error('Failed to enroll in free course:', enrollError);
-    //     return NextResponse.json(
-    //       { 
-    //         error: 'Enrollment failed', 
-    //         message: 'Failed to enroll in free course',
-    //         details: enrollError.message
-    //       },
-    //       { status: 500 }
-    //     );
-    //   }
+      if (createError) {
+        return NextResponse.json(
+          { error: 'Failed to create user', details: createError.message },
+          { status: 500 }
+        );
+      }
+      user = newUser;
+    }
 
-    //   return NextResponse.json({
-    //     success: true,
-    //     message: 'Enrolled successfully in free course',
-    //     courseId,
-    //   });
-    // }
+    // Check if already purchased
+    const { data: existingPurchase } = await supabase
+      .from('course_purchase')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('course_id', courseId)
+      .eq('status', CoursePurchaseStatus.COMPLETED)
+      .maybeSingle();
+
+    if (existingPurchase) {
+      return NextResponse.json({
+        success: true,
+        message: 'Already enrolled',
+        courseId,
+      });
+    }
 
     // If payment proof provided, verify it
     if (paymentProof?.transactionHash || paymentProof?.blockHash) {
@@ -127,23 +132,23 @@ export async function POST(
           );
         }
 
-        // Payment verified! Enroll the student
-        const { error: enrollError } = await supabase
-          .from('enrollment')
+        // Payment verified! Create purchase record
+        const { error: purchaseError } = await supabase
+          .from('course_purchase')
           .insert({
+            user_id: user.id,
             course_id: courseId,
-            student_wallet: walletAddress,
-            tx_hash: paymentProof.transactionHash || paymentProof.blockHash,
-            amount_paid: course.cost,
+            price_paid: course.cost,
+            status: CoursePurchaseStatus.COMPLETED,
           });
 
-        if (enrollError) {
-          console.error('Failed to save enrollment:', enrollError);
+        if (purchaseError) {
+          console.error('Failed to save purchase:', purchaseError);
           return NextResponse.json(
             { 
               error: 'Enrollment failed', 
-              message: 'Payment verified but failed to save enrollment',
-              details: enrollError.message
+              message: 'Payment verified but failed to save purchase',
+              details: purchaseError.message
             },
             { status: 500 }
           );
