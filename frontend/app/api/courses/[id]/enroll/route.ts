@@ -13,7 +13,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 });
 
 // smol402 backend server URL
-const SMOL402_SERVER = process.env.SMOL402_SERVER_URL || 'http://localhost:5402';
+const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || 'http://localhost:5402';
 
 export async function POST(
   request: NextRequest,
@@ -97,7 +97,7 @@ export async function POST(
     // If payment proof provided, verify it
     if (paymentProof?.transactionHash || paymentProof?.blockHash) {
       try {
-        const verifyRes = await fetch(`${SMOL402_SERVER}/verify`, {
+        const verifyRes = await fetch(`${PYTHON_BACKEND_URL}/verify`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
