@@ -10,5 +10,6 @@ dependencies = [
     "flask>=3.1.3",
     "flask-cors>=6.0.2",
     "google-genai>=1.64.0",
+    "gunicorn>=25.1.0",
     "pypolkadot>=0.2.5",
 ]
