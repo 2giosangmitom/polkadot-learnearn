@@ -18,6 +18,4 @@ COPY ai_agent.py server_simple.py ./
 
 EXPOSE 5402
 
-ENV PATH="/app/.venv/bin:$PATH"
-
-CMD ["gunicorn", "--bind", "0.0.0.0:5402", "server_simple:app"]
+CMD ["bash", "-c", "source .venv/bin/activate && gunicorn --bind 0.0.0.0:5402 server_simple:app"]
