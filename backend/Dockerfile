@@ -20,4 +20,4 @@ EXPOSE 5402
 
 ENV PATH="/app/.venv/bin:$PATH"
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5402", "server_simple:app", "--workers", "4"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5402", "server_simple:app"]
