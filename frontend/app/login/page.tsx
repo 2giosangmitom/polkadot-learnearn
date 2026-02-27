@@ -81,9 +81,9 @@ export default function LoginPage() {
 
       // Redirect based on role
       if (selectedRole === 'teacher') {
-        router.push('/pages/teacher/courses');
+        router.push('/teacher/courses');
       } else {
-        router.push('/pages/student/dashboard');
+        router.push('/student/dashboard');
       }
     } catch (error) {
       console.error('Error:', error);
@@ -210,7 +210,7 @@ export default function LoginPage() {
         <div className="mt-6 text-center text-sm text-neutral-500">
           <p>
             New here?{' '}
-            <a href="/pages/landing" className="text-indigo-400 hover:text-indigo-300 font-medium">
+            <a href="/" className="text-indigo-400 hover:text-indigo-300 font-medium">
               Learn more about the platform
             </a>
           </p>

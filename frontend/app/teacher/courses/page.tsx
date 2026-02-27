@@ -65,11 +65,11 @@ export default function TeacherCoursesPage() {
   }, [address, isConnected]);
 
   const handleCreateCourse = () => {
-    router.push('/pages/teacher/create');
+    router.push('/teacher/create');
   };
 
   const handleEditCourse = (courseId: string) => {
-    router.push(`/pages/teacher/create?id=${courseId}`);
+    router.push(`/teacher/create?id=${courseId}`);
   };
 
   return (

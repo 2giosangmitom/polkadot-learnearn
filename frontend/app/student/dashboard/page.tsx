@@ -147,7 +147,7 @@ export default function StudentDashboard() {
 	}, [address, isConnected]);
 
 	const handleStartCourse = (courseId: string) => {
-		router.push(`/pages/student/learn/${courseId}`);
+		router.push(`/student/learn/${courseId}`);
 	};
 
 	return (
@@ -167,7 +167,7 @@ export default function StudentDashboard() {
 						<h3 className="text-xl font-bold text-white mb-2">Your journey hasn't started yet.</h3>
 						<p className="text-neutral-400 mb-6">Explore the course marketplace to find your next skill.</p>
 						<Button 
-							onClick={() => router.push('/pages/student/course')}
+							onClick={() => router.push('/student/course')}
 							className="mx-auto"
 						>
 							Browse Courses

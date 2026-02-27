@@ -108,7 +108,7 @@ export default function StudentLearnPage() {
         showModal('Unable to load course. Please try again.', {
           type: 'error',
           title: 'Error',
-          onConfirm: () => router.push('/pages/student/dashboard')
+          onConfirm: () => router.push('/student/dashboard')
         });
       } finally {
         setLoading(false);
@@ -145,7 +145,7 @@ export default function StudentLearnPage() {
             showModal('You have not enrolled in this course.', {
               type: 'warning',
               title: 'Not Enrolled',
-              onConfirm: () => router.push(`/pages/student/course/${courseId}`)
+              onConfirm: () => router.push(`/student/course/${courseId}`)
             });
           }
         }
@@ -273,7 +273,7 @@ export default function StudentLearnPage() {
         setActiveLessonIdx(activeLessonIdx + 1);
       } else {
         // This is the last lesson, go to dashboard
-        router.push('/pages/student/dashboard');
+        router.push('/student/dashboard');
       }
     }
   };
@@ -324,7 +324,7 @@ export default function StudentLearnPage() {
         <div className="text-center py-12">
           <p className="text-neutral-400">Course not found.</p>
           <Button
-            onClick={() => router.push('/pages/student/dashboard')}
+            onClick={() => router.push('/student/dashboard')}
             className="mt-4"
           >
             Back to Dashboard
@@ -343,7 +343,7 @@ export default function StudentLearnPage() {
         <Card className="w-full md:w-80 flex-shrink-0 flex flex-col h-full overflow-hidden bg-neutral-900 border-neutral-800">
           <div className="p-5 border-b border-neutral-800 bg-neutral-950/50">
             <button 
-              onClick={() => router.push('/pages/student/dashboard')} 
+              onClick={() => router.push('/student/dashboard')} 
               className="text-sm text-neutral-400 hover:text-white mb-4 flex items-center transition-colors"
             >
               ← <span className="ml-1">Dashboard</span>

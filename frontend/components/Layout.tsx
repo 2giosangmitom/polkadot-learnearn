@@ -21,7 +21,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, userRole: propUserRole
 
   useEffect(() => {
     if (!isConnected || !address) {
-      router.push('/pages/login');
+      router.push('/login');
       return;
     }
 
@@ -51,20 +51,20 @@ export const Layout: React.FC<LayoutProps> = ({ children, userRole: propUserRole
 
   const handleLogout = async () => {
     await disconnect();
-    router.push('/pages/landing');
+    router.push('/');
   };
 
   const handleNavigate = (route: string) => {
     if (route === 'dashboard') {
       if (userRole === 'student') {
-        router.push('/pages/student/dashboard');
+        router.push('/student/dashboard');
       } else if (userRole === 'teacher') {
-        router.push('/pages/teacher/courses');
+        router.push('/teacher/courses');
       } else {
         router.push('/');
       }
     } else if (route === 'marketplace' && userRole === 'student') {
-      router.push('/pages/student/course');
+      router.push('/student/course');
     }
   };
 
@@ -102,7 +102,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, userRole: propUserRole
                 <button 
                   onClick={() => handleNavigate('dashboard')}
                   className={getNavItemClasses(
-                    userRole === 'student' ? '/pages/student/dashboard' : '/pages/teacher/courses'
+                    userRole === 'student' ? '/student/dashboard' : '/teacher/courses'
                   )}
                 >
                   Dashboard
@@ -110,7 +110,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, userRole: propUserRole
                 {userRole === 'student' && (
                   <button 
                     onClick={() => handleNavigate('marketplace')}
-                    className={getNavItemClasses('/pages/student/course')}
+                    className={getNavItemClasses('/student/course')}
                   >
                     Courses
                   </button>
@@ -118,14 +118,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, userRole: propUserRole
                 {userRole === 'teacher' && (
                   <>
                     <button 
-                      onClick={() => router.push('/pages/teacher/courses')}
-                      className={getNavItemClasses('/pages/teacher/courses')}
+                      onClick={() => router.push('/teacher/courses')}
+                      className={getNavItemClasses('/teacher/courses')}
                     >
                       My Courses
                     </button>
                     <button 
-                      onClick={() => router.push('/pages/teacher/create')}
-                      className={getNavItemClasses('/pages/teacher/create')}
+                      onClick={() => router.push('/teacher/create')}
+                      className={getNavItemClasses('/teacher/create')}
                     >
                       Create Course
                     </button>

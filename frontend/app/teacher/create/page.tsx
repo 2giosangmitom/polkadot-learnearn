@@ -178,7 +178,7 @@ export default function TeacherCreatePage() {
           type: 'success',
           title: 'Success',
           onConfirm: () => {
-            router.push('/pages/teacher/courses');
+            router.push('/teacher/courses');
           }
         });
       } else {
@@ -187,7 +187,7 @@ export default function TeacherCreatePage() {
           type: 'success',
           title: 'Success',
           onConfirm: () => {
-            router.push('/pages/teacher/courses');
+            router.push('/teacher/courses');
           }
         });
       }
@@ -210,7 +210,7 @@ export default function TeacherCreatePage() {
       confirmText: 'Discard',
       cancelText: 'Go Back',
       onConfirm: () => {
-        router.push('/pages/teacher/courses');
+        router.push('/teacher/courses');
       }
     });
   };

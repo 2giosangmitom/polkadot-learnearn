@@ -64,11 +64,11 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
   const handleEnrollSuccess = () => {
     setIsEnrolled(true);
     // Redirect to learning page
-    router.push(`/pages/student/learn/${courseId}`);
+    router.push(`/student/learn/${courseId}`);
   };
 
   const handleStartLearning = () => {
-    router.push(`/pages/student/learn/${courseId}`);
+    router.push(`/student/learn/${courseId}`);
   };
 
   if (loading) {

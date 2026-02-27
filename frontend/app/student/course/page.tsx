@@ -72,7 +72,7 @@ export default function CourseMarketplace() {
 				type: 'warning',
 				title: 'Wallet Not Connected',
 				onConfirm: () => {
-					router.push('/pages/login');
+					router.push('/login');
 				}
 			});
 			return;
@@ -137,7 +137,7 @@ export default function CourseMarketplace() {
 						type: 'success',
 						title: 'Success',
 						onConfirm: () => {
-							router.push(`/pages/student/course/${course.id}`);
+							router.push(`/student/course/${course.id}`);
 						}
 					});
 					return;
@@ -160,7 +160,7 @@ export default function CourseMarketplace() {
 					type: 'success',
 					title: 'Success',
 					onConfirm: () => {
-						router.push(`/pages/student/course/${course.id}`);
+						router.push(`/student/course/${course.id}`);
 					}
 				});
 			}
