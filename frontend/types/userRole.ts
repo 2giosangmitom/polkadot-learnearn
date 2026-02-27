@@ -12,7 +12,7 @@ export function getUserRoleState(roleValue: number | undefined | null): UserRole
     case UserRoleValue.STUDENT:
       return 'student';
     default:
-      return 'student'; // default to student if unknown
+      return 'unknown';
   }
 }
 

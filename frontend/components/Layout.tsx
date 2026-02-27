@@ -33,8 +33,17 @@ export const Layout: React.FC<LayoutProps> = ({ children, userRole: propUserRole
         if (res.ok) {
           const data = await res.json();
           if (!abort && data?.user) {
-            setUserRole(getUserRoleState(data.user.role));
+            const role = getUserRoleState(data.user.role);
+            if (role === 'unknown') {
+              // User has no role set — send them to login to pick one
+              router.push('/login');
+              return;
+            }
+            setUserRole(role);
             setDisplayName(data.user.display_name);
+          } else if (!abort) {
+            // User not found in DB — send to login
+            router.push('/login');
           }
         }
       } catch (err) {

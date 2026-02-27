@@ -54,19 +54,62 @@ export async function POST(req: Request) {
     if (typeof incomingRole === 'string') {
       return incomingRole.toLowerCase() === 'teacher' ? 2 : 1;
     }
-    return 1;
+    return null; // no role provided
   })();
 
   if (!wallet_address) {
     return NextResponse.json({ error: 'wallet_address is required' }, { status: 400 });
   }
 
+  // Check if user already exists
+  const { data: existing } = await supabase
+    .from('user')
+    .select('*')
+    .eq('wallet_address', wallet_address)
+    .maybeSingle();
+
+  if (existing) {
+    // User exists — only update fields that should change
+    // Don't overwrite role if user already has one set
+    const updateFields: Record<string, unknown> = {};
+    if (display_name !== null) {
+      updateFields.display_name = display_name;
+    }
+    if (role !== null && (existing.role === null || existing.role === undefined)) {
+      // Only set role if user doesn't have one yet
+      updateFields.role = role;
+    }
+
+    if (Object.keys(updateFields).length > 0) {
+      const { data, error } = await supabase
+        .from('user')
+        .update(updateFields)
+        .eq('wallet_address', wallet_address)
+        .select()
+        .maybeSingle();
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ user: data });
+    }
+
+    return NextResponse.json({ user: existing });
+  }
+
+  // New user — insert with role (or null if not provided)
+  const insertFields: Record<string, unknown> = { wallet_address };
+  if (display_name !== null) {
+    insertFields.display_name = display_name;
+  }
+  if (role !== null) {
+    insertFields.role = role;
+  }
+
   const { data, error } = await supabase
     .from('user')
-    .upsert(
-      { wallet_address, display_name, role },
-      { onConflict: 'wallet_address' }
-    )
+    .insert(insertFields)
     .select()
     .maybeSingle();
 
