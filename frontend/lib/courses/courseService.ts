@@ -49,9 +49,9 @@ export async function getCourseById(id: string) {
   // Fetch lessons separately
   const { data: lessons, error: lessonError } = await supabase
     .from('lesson')
-    .select('id, title, description, video_url, payback_amount, course_id, created_at, update_at')
+    .select('id, title, description, video_url, payback_amount, lesson_index, course_id, created_at, update_at')
     .eq('course_id', id)
-    .order('created_at', { ascending: true });
+    .order('lesson_index', { ascending: true });
 
   if (lessonError) {
     console.error('Failed to fetch lessons:', lessonError.message);
@@ -102,11 +102,12 @@ export async function createCourse(
   if (payload.lessons?.length) {
     const lessonsToInsert = payload.lessons
       .filter((lesson) => lesson.title)
-      .map((lesson) => ({
+      .map((lesson, index) => ({
         title: lesson.title,
         description: lesson.description ?? null,
         video_url: lesson.video_url ?? null,
         payback_amount: lesson.payback_amount ?? null,
+        lesson_index: lesson.lesson_index ?? index,
         course_id: newCourse.id,
       }));
 
@@ -134,9 +135,10 @@ export async function createLesson(
       description: payload.description ?? null,
       video_url: payload.video_url ?? null,
       payback_amount: payload.payback_amount ?? null,
+      lesson_index: payload.lesson_index ?? 0,
       course_id: courseId,
     })
-    .select('id, title, description, video_url, payback_amount, course_id, created_at, update_at')
+    .select('id, title, description, video_url, payback_amount, lesson_index, course_id, created_at, update_at')
     .single();
 
   if (error) {
@@ -184,7 +186,7 @@ export async function updateLesson(
       update_at: new Date().toISOString(),
     })
     .eq('id', id)
-    .select('id, title, description, video_url, payback_amount, course_id, created_at, update_at')
+    .select('id, title, description, video_url, payback_amount, lesson_index, course_id, created_at, update_at')
     .single();
 
   if (error) {

@@ -15,6 +15,7 @@ export type Lesson = {
   description: string | null;
   video_url: string | null;
   payback_amount: number | null;
+  lesson_index: number;
   course_id: string | null;
   created_at: string;
   update_at: string | null;
@@ -45,6 +46,7 @@ export type CreateLessonInput = {
   description?: string;
   video_url?: string;
   payback_amount?: number | null;
+  lesson_index?: number;
 };
 
 // Course purchase status enum

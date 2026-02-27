@@ -66,6 +66,7 @@ export async function updateCourseAction(courseId: string, formData: FormData) {
         description: lesson.description || null,
         video_url: lesson.video_url || null,
         payback_amount: lesson.payback_amount || null,
+        lesson_index: lesson.lesson_index ?? 0,
       };
 
       if (lesson.id && existingLessonIds.has(lesson.id)) {

@@ -40,9 +40,9 @@ export async function GET(
   // Fetch lessons separately
   const { data: lessons, error: lessonError } = await supabase
     .from('lesson')
-    .select('id, title, description, video_url, payback_amount, course_id, created_at, update_at')
+    .select('id, title, description, video_url, payback_amount, lesson_index, course_id, created_at, update_at')
     .eq('course_id', courseId)
-    .order('created_at', { ascending: true });
+    .order('lesson_index', { ascending: true });
 
   if (lessonError) {
     console.error('Error fetching lessons:', lessonError);

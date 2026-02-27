@@ -59,9 +59,9 @@ export async function GET(req: Request) {
   const courseIds = courses.map(c => c.id);
   const { data: lessons, error: lessonError } = await supabase
     .from('lesson')
-    .select('id, title, course_id, created_at')
+    .select('id, title, lesson_index, course_id, created_at')
     .in('course_id', courseIds)
-    .order('created_at', { ascending: true });
+    .order('lesson_index', { ascending: true });
 
   if (lessonError) {
     console.error('Error fetching lessons:', lessonError);

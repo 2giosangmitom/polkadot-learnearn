@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createCourseAction, updateCourseAction } from './actions';
 import { Layout } from '@/components/Layout';
 import { Card, Button, Input, Textarea, Label } from '@/components/SharedUI';
-import { PlusIcon, TrashIcon } from '@/components/Icons';
+import { PlusIcon, TrashIcon, ChevronUpIcon, ChevronDownIcon } from '@/components/Icons';
 import { useWallet } from '@/lib/hooks/useWallet';
 import Modal, { useModal } from '@/components/Modal';
 
@@ -85,10 +85,10 @@ export default function TeacherCreatePage() {
         setCost(course.cost?.toString() || '');
         setThumbnailUrl(course.thumbnail_url || '');
 
-        if (course.lesson && course.lesson.length > 0) {
-          // Sort lessons by created_at to maintain proper order
-          const sortedLessons = [...course.lesson].sort((a: any, b: any) => {
-            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        if (course.lessons && course.lessons.length > 0) {
+          // Sort lessons by lesson_index to maintain proper order
+          const sortedLessons = [...course.lessons].sort((a: any, b: any) => {
+            return (a.lesson_index ?? 0) - (b.lesson_index ?? 0);
           });
 
           setLessons(
@@ -130,6 +130,20 @@ export default function TeacherCreatePage() {
     setLessons(updatedLessons);
   };
 
+  const moveLessonUp = (index: number) => {
+    if (index === 0) return;
+    const updatedLessons = [...lessons];
+    [updatedLessons[index - 1], updatedLessons[index]] = [updatedLessons[index], updatedLessons[index - 1]];
+    setLessons(updatedLessons);
+  };
+
+  const moveLessonDown = (index: number) => {
+    if (index >= lessons.length - 1) return;
+    const updatedLessons = [...lessons];
+    [updatedLessons[index], updatedLessons[index + 1]] = [updatedLessons[index + 1], updatedLessons[index]];
+    setLessons(updatedLessons);
+  };
+
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
 
@@ -161,12 +175,13 @@ export default function TeacherCreatePage() {
         wallet_address: address,
         lessons: lessons
           .filter((l) => l.title)
-          .map((lesson) => ({
+          .map((lesson, index) => ({
             id: lesson.id,
             title: lesson.title,
             description: lesson.description || null,
             video_url: lesson.videoUrl || null,
             payback_amount: lesson.paybackAmount ? parseFloat(lesson.paybackAmount) : null,
+            lesson_index: index,
           })),
       };
 
@@ -339,7 +354,25 @@ export default function TeacherCreatePage() {
 
               {lessons.map((lesson, idx) => (
                 <Card key={idx} className="p-8 border-l-4 border-l-indigo-500 bg-neutral-900 overflow-visible relative">
-                  <div className="absolute top-0 right-0 p-4">
+                  <div className="absolute top-0 right-0 p-4 flex items-center space-x-1">
+                    <button
+                      type="button"
+                      onClick={() => moveLessonUp(idx)}
+                      className="text-neutral-500 hover:text-white bg-neutral-800 p-2 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="Move Up"
+                      disabled={idx === 0}
+                    >
+                      <ChevronUpIcon className="w-5 h-5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveLessonDown(idx)}
+                      className="text-neutral-500 hover:text-white bg-neutral-800 p-2 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="Move Down"
+                      disabled={idx === lessons.length - 1}
+                    >
+                      <ChevronDownIcon className="w-5 h-5" />
+                    </button>
                     <button
                       type="button"
                       onClick={() => removeLesson(idx)}
