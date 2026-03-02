@@ -60,7 +60,16 @@ export async function GET(req: Request) {
   // Extract course_ids for quick lookup
   const courseIds = (purchases || []).map((p) => p.course_id);
 
-  return NextResponse.json({ purchases: purchases || [], courseIds });
+  // Build a map of course_id -> lesson_progress for the dashboard
+  const progressMap: Record<string, { completedLessonIds: string[] }> = {};
+  for (const p of purchases || []) {
+    const lp = p.lesson_progress as { completedLessonIds?: string[] } | null;
+    progressMap[p.course_id] = {
+      completedLessonIds: lp?.completedLessonIds || [],
+    };
+  }
+
+  return NextResponse.json({ purchases: purchases || [], courseIds, progressMap });
 }
 
 /**
@@ -135,6 +144,7 @@ export async function POST(req: Request) {
       course_id,
       price_paid: price_paid || null,
       status: CoursePurchaseStatus.COMPLETED,
+      transaction_hash: transaction_hash || null,
     })
     .select()
     .single();

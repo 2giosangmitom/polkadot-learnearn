@@ -76,6 +76,47 @@ export default function StudentLearnPage() {
     setQuizScore(null);
   }, [activeLessonIdx]);
 
+  // Load saved quiz answers from database when lesson changes
+  useEffect(() => {
+    if (!activeLesson?.quizzes || activeLesson.quizzes.length === 0 || !address) return;
+
+    let cancelled = false;
+
+    async function loadSavedAnswers() {
+      try {
+        const res = await fetch(
+          `/api/quiz-answers?wallet_address=${encodeURIComponent(address!)}&lesson_id=${activeLesson!.id}`
+        );
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const saved: Record<string, number> = data.answers || {};
+
+        if (cancelled || Object.keys(saved).length === 0) return;
+
+        setSelectedAnswers(saved);
+
+        // Check if all answers were correct — if so, mark quiz as already submitted
+        const quizzes = activeLesson!.quizzes!;
+        let correct = 0;
+        for (const quiz of quizzes) {
+          if (saved[quiz.id] === quiz.correct_option) {
+            correct++;
+          }
+        }
+
+        setQuizScore({ correct, total: quizzes.length });
+        setQuizSubmitted(true);
+      } catch (err) {
+        console.error('Failed to load saved quiz answers:', err);
+      }
+    }
+
+    loadSavedAnswers();
+
+    return () => { cancelled = true; };
+  }, [activeLesson?.id, address]);
+
   // Calculate Progress
   const completedCount = course?.lessons 
     ? course.lessons.filter(l => completedLessonIds.includes(l.id)).length 
@@ -83,6 +124,13 @@ export default function StudentLearnPage() {
   const courseProgress = course?.lessons 
     ? Math.round((completedCount / course.lessons.length) * 100) 
     : 0;
+
+  // Compute totalEarned from completed lessons
+  const computedTotalEarned = course?.lessons
+    ? course.lessons
+        .filter(l => completedLessonIds.includes(l.id))
+        .reduce((sum, l) => sum + (l.payback_amount || 0), 0)
+    : totalEarned;
 
   // Load course and lessons
   useEffect(() => {
@@ -115,19 +163,28 @@ export default function StudentLearnPage() {
     }
 
     loadCourse();
+  }, [courseId, router, showModal]);
 
-    // Load completed lessons from localStorage
-    const savedProgress = localStorage.getItem(`course_progress_${courseId}`);
-    if (savedProgress) {
+  // Load lesson progress from database
+  useEffect(() => {
+    if (!courseId || !address) return;
+
+    async function loadProgress() {
       try {
-        const progress = JSON.parse(savedProgress);
-        setCompletedLessonIds(progress.completedLessonIds || []);
-        setTotalEarned(progress.totalEarned || 0);
-      } catch (e) {
-        console.error('Failed to parse saved progress:', e);
+        const res = await fetch(
+          `/api/lesson-progress?wallet_address=${encodeURIComponent(address!)}&course_id=${encodeURIComponent(courseId)}`
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        const ids: string[] = data.completedLessonIds || [];
+        setCompletedLessonIds(ids);
+      } catch (err) {
+        console.error('Failed to load lesson progress:', err);
       }
     }
-  }, [courseId, router, showModal]);
+
+    loadProgress();
+  }, [courseId, address]);
 
   // Check if user has purchased the course
   useEffect(() => {
@@ -167,7 +224,7 @@ export default function StudentLearnPage() {
     setSelectedAnswers(prev => ({ ...prev, [quizId]: option }));
   };
 
-  const handleSubmitQuiz = () => {
+  const handleSubmitQuiz = async () => {
     if (!activeLesson?.quizzes || activeLesson.quizzes.length === 0) return;
 
     const quizzes = activeLesson.quizzes;
@@ -181,6 +238,22 @@ export default function StudentLearnPage() {
     setQuizScore({ correct, total: quizzes.length });
     setQuizSubmitted(true);
 
+    // Save answers to database
+    if (address) {
+      try {
+        await fetch('/api/quiz-answers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            wallet_address: address,
+            answers: selectedAnswers,
+          }),
+        });
+      } catch (err) {
+        console.error('Failed to save quiz answers:', err);
+      }
+    }
+
     // If all correct, auto-complete the lesson
     if (correct === quizzes.length) {
       handleCompleteLesson(true);
@@ -193,10 +266,10 @@ export default function StudentLearnPage() {
     setQuizScore(null);
   };
 
-  const handleCompleteLesson = (silent = false) => {
+  const handleCompleteLesson = async (silent = false) => {
     if (!activeLesson || isLessonCompleted) return;
 
-    // Add to completed lessons
+    // Add to completed lessons (optimistic update)
     const newCompletedIds = [...completedLessonIds, activeLesson.id];
     setCompletedLessonIds(newCompletedIds);
 
@@ -205,12 +278,22 @@ export default function StudentLearnPage() {
     const newTotalEarned = totalEarned + reward;
     setTotalEarned(newTotalEarned);
 
-    // Save progress to localStorage
-    const progress = {
-      completedLessonIds: newCompletedIds,
-      totalEarned: newTotalEarned,
-    };
-    localStorage.setItem(`course_progress_${courseId}`, JSON.stringify(progress));
+    // Save progress to database
+    if (address) {
+      try {
+        await fetch('/api/lesson-progress', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            wallet_address: address,
+            course_id: courseId,
+            completed_lesson_id: activeLesson.id,
+          }),
+        });
+      } catch (err) {
+        console.error('Failed to save lesson progress:', err);
+      }
+    }
 
     // Show completion message only if not silent
     if (!silent) {
@@ -360,7 +443,7 @@ export default function StudentLearnPage() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-neutral-500">Rewards:</span>
-                <span className="text-amber-400 font-semibold">{totalEarned} PAS</span>
+                <span className="text-amber-400 font-semibold">{computedTotalEarned} PAS</span>
               </div>
             </div>
           </div>

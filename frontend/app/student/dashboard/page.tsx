@@ -7,29 +7,24 @@ import { Course } from '@/types/course';
 import { useWallet } from '@/lib/hooks';
 import { Card, Button, Badge, ProgressBar } from '@/components/SharedUI';
 
-const getCourseProgress = (course: Course) => {
+const getCourseProgress = (course: Course, progressMap: Record<string, { completedLessonIds: string[] }>) => {
   if (!course.lessons || course.lessons.length === 0) return 0;
-  try {
-    const saved = localStorage.getItem(`course_progress_${course.id}`);
-    if (!saved) return 0;
-    const parsed = JSON.parse(saved);
-    // The learn page saves progress as { completedLessonIds: [...], totalEarned: N }
-    const completedLessonIds = Array.isArray(parsed) ? parsed : (parsed.completedLessonIds || []);
-    return Math.round((completedLessonIds.length / course.lessons.length) * 100);
-  } catch (e) {
-    return 0;
-  }
+  const progress = progressMap[course.id];
+  if (!progress) return 0;
+  const completedLessonIds = progress.completedLessonIds || [];
+  return Math.round((completedLessonIds.length / course.lessons.length) * 100);
 };
 
 const CourseCard: React.FC<{ 
   course: Course; 
   isEnrolled: boolean;
   onPlayCourse: (id: string) => void;
+  progressMap: Record<string, { completedLessonIds: string[] }>;
   // Props not used in dashboard but kept for interface compatibility
   onBuyCourse?: (course: Course) => void;
   processingPurchase?: string | null;
-}> = ({ course, isEnrolled, onPlayCourse, onBuyCourse, processingPurchase }) => {
-  const progress = isEnrolled ? getCourseProgress(course) : 0;
+}> = ({ course, isEnrolled, onPlayCourse, progressMap, onBuyCourse, processingPurchase }) => {
+  const progress = isEnrolled ? getCourseProgress(course, progressMap) : 0;
   
   return (
     <Card className="card-hover flex flex-col h-full border border-neutral-800 hover:border-indigo-500/50 transition-all overflow-hidden group">
@@ -89,6 +84,7 @@ export default function StudentDashboard() {
 	const router = useRouter();
 	const { address, isConnected } = useWallet();
 	const [enrolledCourses, setEnrolledCourses] = useState<Course[]>([]);
+	const [progressMap, setProgressMap] = useState<Record<string, { completedLessonIds: string[] }>>({});
 	const [loading, setLoading] = useState(true);
 
 	useEffect(() => {
@@ -110,10 +106,12 @@ export default function StudentDashboard() {
 				}
 
 				const purchasedCourseIds = purchasesData.courseIds || [];
+				const serverProgressMap = purchasesData.progressMap || {};
 
 				if (purchasedCourseIds.length === 0) {
 					if (!abort) {
 						setEnrolledCourses([]);
+						setProgressMap({});
 						setLoading(false);
 					}
 					return;
@@ -134,6 +132,7 @@ export default function StudentDashboard() {
 
 				if (!abort) {
 					setEnrolledCourses(enrolled);
+					setProgressMap(serverProgressMap);
 					setLoading(false);
 				}
 			} catch (err) {
@@ -184,6 +183,7 @@ export default function StudentDashboard() {
 								course={course} 
 								isEnrolled={true} 
 								onPlayCourse={handleStartCourse}
+								progressMap={progressMap}
 							/>
 						))}
 					</div>

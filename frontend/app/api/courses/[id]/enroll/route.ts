@@ -140,6 +140,7 @@ export async function POST(
             course_id: courseId,
             price_paid: course.cost,
             status: CoursePurchaseStatus.COMPLETED,
+            transaction_hash: paymentProof.transactionHash || null,
           });
 
         if (purchaseError) {
