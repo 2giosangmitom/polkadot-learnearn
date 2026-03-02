@@ -11,7 +11,10 @@ const getCourseProgress = (course: Course) => {
   if (!course.lessons || course.lessons.length === 0) return 0;
   try {
     const saved = localStorage.getItem(`course_progress_${course.id}`);
-    const completedLessonIds = saved ? JSON.parse(saved) : [];
+    if (!saved) return 0;
+    const parsed = JSON.parse(saved);
+    // The learn page saves progress as { completedLessonIds: [...], totalEarned: N }
+    const completedLessonIds = Array.isArray(parsed) ? parsed : (parsed.completedLessonIds || []);
     return Math.round((completedLessonIds.length / course.lessons.length) * 100);
   } catch (e) {
     return 0;

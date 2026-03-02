@@ -1,3 +1,27 @@
+export type LessonQuiz = {
+  id: string;
+  question: string;
+  option_a: string;
+  option_b: string;
+  option_c: string;
+  option_d: string;
+  correct_option: number; // 1=A, 2=B, 3=C, 4=D
+  quiz_index: number;
+  lesson_id: string;
+  created_at: string;
+};
+
+export type CreateQuizInput = {
+  id?: string;
+  question: string;
+  option_a: string;
+  option_b: string;
+  option_c: string;
+  option_d: string;
+  correct_option: number;
+  quiz_index: number;
+};
+
 export type Milestone = {
   id: string;
   title: string;
@@ -20,6 +44,7 @@ export type Lesson = {
   created_at: string;
   update_at: string | null;
   milestone?: Milestone | null; // Added relation
+  quizzes?: LessonQuiz[];
 };
 
 export type Course = {
@@ -47,6 +72,7 @@ export type CreateLessonInput = {
   video_url?: string;
   payback_amount?: number | null;
   lesson_index?: number;
+  quizzes?: CreateQuizInput[];
 };
 
 // Course purchase status enum

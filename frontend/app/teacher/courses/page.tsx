@@ -17,7 +17,7 @@ type CourseWithLessons = {
   thumbnail_url?: string | null;
   created_at: string;
   update_at: string | null;
-  lesson?: Lesson[];
+  lessons?: Lesson[];
 };
 
 export default function TeacherCoursesPage() {
@@ -149,7 +149,7 @@ export default function TeacherCoursesPage() {
                     </p>
                     <div className="text-xs font-medium text-neutral-500 uppercase tracking-wider flex items-center space-x-2">
                       <span className="bg-neutral-800 px-2 py-1 rounded">
-                        {course.lesson?.length || 0} Lessons
+                        {course.lessons?.length || 0} Lessons
                       </span>
                     </div>
                   </div>

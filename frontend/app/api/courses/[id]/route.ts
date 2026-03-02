@@ -50,10 +50,38 @@ export async function GET(
     return NextResponse.json({ courses: { ...course, lessons: [] } });
   }
 
+  // Fetch quizzes for all lessons
+  const lessonIds = (lessons || []).map((l) => l.id);
+  let quizzesByLesson: Record<string, any[]> = {};
+
+  if (lessonIds.length > 0) {
+    const { data: quizzes, error: quizError } = await supabase
+      .from('lesson_quiz')
+      .select('id, question, option_a, option_b, option_c, option_d, correct_option, quiz_index, lesson_id')
+      .in('lesson_id', lessonIds)
+      .order('quiz_index', { ascending: true });
+
+    if (quizError) {
+      console.error('Error fetching quizzes:', quizError);
+    } else if (quizzes) {
+      for (const quiz of quizzes) {
+        if (!quizzesByLesson[quiz.lesson_id]) {
+          quizzesByLesson[quiz.lesson_id] = [];
+        }
+        quizzesByLesson[quiz.lesson_id].push(quiz);
+      }
+    }
+  }
+
+  const lessonsWithQuizzes = (lessons || []).map((lesson) => ({
+    ...lesson,
+    quizzes: quizzesByLesson[lesson.id] || [],
+  }));
+
   return NextResponse.json({ 
     courses: {
       ...course,
-      lessons: lessons || []
+      lessons: lessonsWithQuizzes
     }
   });
 }

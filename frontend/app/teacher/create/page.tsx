@@ -9,19 +9,40 @@ import { PlusIcon, TrashIcon, ChevronUpIcon, ChevronDownIcon } from '@/component
 import { useWallet } from '@/lib/hooks/useWallet';
 import Modal, { useModal } from '@/components/Modal';
 
+interface QuizForm {
+  id?: string;
+  question: string;
+  optionA: string;
+  optionB: string;
+  optionC: string;
+  optionD: string;
+  correctOption: number; // 1=A, 2=B, 3=C, 4=D
+}
+
 interface LessonForm {
   id?: string;
   title: string;
   description: string;
   videoUrl: string;
   paybackAmount: string;
+  quizzes: QuizForm[];
 }
+
+const EMPTY_QUIZ: QuizForm = {
+  question: '',
+  optionA: '',
+  optionB: '',
+  optionC: '',
+  optionD: '',
+  correctOption: 1,
+};
 
 const EMPTY_LESSON: LessonForm = {
   title: '',
   description: '',
   videoUrl: '',
   paybackAmount: '',
+  quizzes: [],
 };
 
 export default function TeacherCreatePage() {
@@ -98,6 +119,17 @@ export default function TeacherCreatePage() {
               description: l.description || '',
               videoUrl: l.video_url || '',
               paybackAmount: l.payback_amount?.toString() || '',
+              quizzes: (l.quizzes || [])
+                .sort((a: any, b: any) => (a.quiz_index ?? 0) - (b.quiz_index ?? 0))
+                .map((q: any) => ({
+                  id: q.id,
+                  question: q.question || '',
+                  optionA: q.option_a || '',
+                  optionB: q.option_b || '',
+                  optionC: q.option_c || '',
+                  optionD: q.option_d || '',
+                  correctOption: q.correct_option ?? 1,
+                })),
             }))
           );
         } else {
@@ -144,6 +176,32 @@ export default function TeacherCreatePage() {
     setLessons(updatedLessons);
   };
 
+  const addQuiz = (lessonIndex: number) => {
+    const updatedLessons = [...lessons];
+    updatedLessons[lessonIndex] = {
+      ...updatedLessons[lessonIndex],
+      quizzes: [...updatedLessons[lessonIndex].quizzes, { ...EMPTY_QUIZ }],
+    };
+    setLessons(updatedLessons);
+  };
+
+  const removeQuiz = (lessonIndex: number, quizIndex: number) => {
+    const updatedLessons = [...lessons];
+    updatedLessons[lessonIndex] = {
+      ...updatedLessons[lessonIndex],
+      quizzes: updatedLessons[lessonIndex].quizzes.filter((_, i) => i !== quizIndex),
+    };
+    setLessons(updatedLessons);
+  };
+
+  const updateQuiz = (lessonIndex: number, quizIndex: number, field: keyof QuizForm, value: string | number) => {
+    const updatedLessons = [...lessons];
+    const updatedQuizzes = [...updatedLessons[lessonIndex].quizzes];
+    updatedQuizzes[quizIndex] = { ...updatedQuizzes[quizIndex], [field]: value };
+    updatedLessons[lessonIndex] = { ...updatedLessons[lessonIndex], quizzes: updatedQuizzes };
+    setLessons(updatedLessons);
+  };
+
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
 
@@ -182,6 +240,18 @@ export default function TeacherCreatePage() {
             video_url: lesson.videoUrl || null,
             payback_amount: lesson.paybackAmount ? parseFloat(lesson.paybackAmount) : null,
             lesson_index: index,
+            quizzes: lesson.quizzes
+              .filter((q) => q.question)
+              .map((quiz, qIdx) => ({
+                id: quiz.id,
+                question: quiz.question,
+                option_a: quiz.optionA,
+                option_b: quiz.optionB,
+                option_c: quiz.optionC,
+                option_d: quiz.optionD,
+                correct_option: quiz.correctOption,
+                quiz_index: qIdx,
+              })),
           })),
       };
 
@@ -437,6 +507,121 @@ export default function TeacherCreatePage() {
                           <span className="text-neutral-500 text-sm font-medium">PAS</span>
                         </div>
                       </div>
+                    </div>
+                  </div>
+
+                  {/* Quiz Section */}
+                  <div className="mt-8 pt-6 border-t border-neutral-800">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-sm font-bold text-neutral-300 uppercase tracking-wider">
+                        Quiz Questions ({lesson.quizzes.length})
+                      </h4>
+                      <Button
+                        variant="outline"
+                        type="button"
+                        onClick={() => addQuiz(idx)}
+                        className="flex items-center text-xs py-1.5 px-3"
+                      >
+                        <PlusIcon className="w-3 h-3 mr-1.5" /> Add Question
+                      </Button>
+                    </div>
+
+                    {lesson.quizzes.length === 0 && (
+                      <p className="text-neutral-600 text-sm italic">
+                        No quiz questions yet. Add questions to test student understanding.
+                      </p>
+                    )}
+
+                    <div className="space-y-4">
+                      {lesson.quizzes.map((quiz, qIdx) => (
+                        <div
+                          key={qIdx}
+                          className="p-4 bg-neutral-800/50 rounded-xl border border-neutral-700/50 relative"
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">
+                              Question {qIdx + 1}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => removeQuiz(idx, qIdx)}
+                              className="icon-hover-red text-neutral-500 p-1 rounded"
+                              title="Remove Question"
+                            >
+                              <TrashIcon className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          <div className="mb-3">
+                            <Label>Question *</Label>
+                            <Input
+                              value={quiz.question}
+                              onChange={(e) => updateQuiz(idx, qIdx, 'question', e.target.value)}
+                              placeholder="Enter quiz question"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                            <div>
+                              <Label>Option A *</Label>
+                              <Input
+                                value={quiz.optionA}
+                                onChange={(e) => updateQuiz(idx, qIdx, 'optionA', e.target.value)}
+                                placeholder="Option A"
+                              />
+                            </div>
+                            <div>
+                              <Label>Option B *</Label>
+                              <Input
+                                value={quiz.optionB}
+                                onChange={(e) => updateQuiz(idx, qIdx, 'optionB', e.target.value)}
+                                placeholder="Option B"
+                              />
+                            </div>
+                            <div>
+                              <Label>Option C *</Label>
+                              <Input
+                                value={quiz.optionC}
+                                onChange={(e) => updateQuiz(idx, qIdx, 'optionC', e.target.value)}
+                                placeholder="Option C"
+                              />
+                            </div>
+                            <div>
+                              <Label>Option D *</Label>
+                              <Input
+                                value={quiz.optionD}
+                                onChange={(e) => updateQuiz(idx, qIdx, 'optionD', e.target.value)}
+                                placeholder="Option D"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <Label>Correct Answer *</Label>
+                            <div className="flex space-x-3 mt-1">
+                              {[
+                                { value: 1, label: 'A' },
+                                { value: 2, label: 'B' },
+                                { value: 3, label: 'C' },
+                                { value: 4, label: 'D' },
+                              ].map((opt) => (
+                                <button
+                                  key={opt.value}
+                                  type="button"
+                                  onClick={() => updateQuiz(idx, qIdx, 'correctOption', opt.value)}
+                                  className={`w-10 h-10 rounded-lg font-bold text-sm transition-all ${
+                                    quiz.correctOption === opt.value
+                                      ? 'bg-green-600 text-white ring-2 ring-green-400'
+                                      : 'bg-neutral-700 text-neutral-400 hover:bg-neutral-600'
+                                  }`}
+                                >
+                                  {opt.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </Card>

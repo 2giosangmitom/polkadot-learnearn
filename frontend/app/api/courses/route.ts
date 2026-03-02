@@ -16,7 +16,7 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
 export async function GET() {
 	const { data, error } = await supabase
 		.from('course')
-		.select('id, title, description, cost')
+		.select('id, title, description, cost, thumbnail_url, lesson(id, title, lesson_index)')
 		.order('created_at', { ascending: false });
 
 	if (error) {
@@ -28,6 +28,8 @@ export async function GET() {
 		title: course.title,
 		description: course.description,
 		cost: course.cost,
+		thumbnail_url: course.thumbnail_url,
+		lessons: (course.lesson || []).sort((a: any, b: any) => a.lesson_index - b.lesson_index),
 	}));
 
 	return NextResponse.json({ courses });

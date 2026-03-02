@@ -1,4 +1,4 @@
-import { Course, CreateCourseInput, CreateLessonInput, Lesson } from '@/types/course';
+import { Course, CreateCourseInput, CreateLessonInput, CreateQuizInput, Lesson } from '@/types/course';
 import { supabase } from '../supabase/client';
 
 const TEACHER_ROLE = 2;
@@ -112,9 +112,55 @@ export async function createCourse(
       }));
 
     if (lessonsToInsert.length) {
-      const { error: lessonError } = await supabase.from('lesson').insert(lessonsToInsert);
+      const { data: insertedLessons, error: lessonError } = await supabase
+        .from('lesson')
+        .insert(lessonsToInsert)
+        .select('id, lesson_index');
       if (lessonError) {
         throw new Error(`Failed to create lessons: ${lessonError.message}`);
+      }
+
+      // Insert quizzes for each lesson
+      if (insertedLessons) {
+        const quizzesToInsert: {
+          question: string;
+          option_a: string;
+          option_b: string;
+          option_c: string;
+          option_d: string;
+          correct_option: number;
+          quiz_index: number;
+          lesson_id: string;
+        }[] = [];
+
+        for (const insertedLesson of insertedLessons) {
+          const originalLesson = payload.lessons.find(
+            (l) => (l.lesson_index ?? 0) === insertedLesson.lesson_index
+          );
+          if (originalLesson?.quizzes?.length) {
+            for (const quiz of originalLesson.quizzes) {
+              quizzesToInsert.push({
+                question: quiz.question,
+                option_a: quiz.option_a,
+                option_b: quiz.option_b,
+                option_c: quiz.option_c,
+                option_d: quiz.option_d,
+                correct_option: quiz.correct_option,
+                quiz_index: quiz.quiz_index,
+                lesson_id: insertedLesson.id,
+              });
+            }
+          }
+        }
+
+        if (quizzesToInsert.length) {
+          const { error: quizError } = await supabase
+            .from('lesson_quiz')
+            .insert(quizzesToInsert);
+          if (quizError) {
+            throw new Error(`Failed to create quizzes: ${quizError.message}`);
+          }
+        }
       }
     }
   }

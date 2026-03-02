@@ -8,8 +8,6 @@ import { useWallet } from '@/lib/hooks';
 import Modal, { useModal } from '@/components/Modal';
 import { Course, Lesson } from '@/types/course';
 import { 
-  BookOpenIcon, 
-  AcademicCapIcon, 
   CoinIcon, 
   CheckCircleIcon, 
   PlayCircleIcon, 
@@ -61,11 +59,11 @@ export default function StudentLearnPage() {
   const [totalEarned, setTotalEarned] = useState(0);
   const { modalState, showModal, hideModal } = useModal();
   
-  // Test Mode State
-  const [viewMode, setViewMode] = useState<'content' | 'test'>('content');
-  const [answer, setAnswer] = useState('');
-  const [isEvaluating, setIsEvaluating] = useState(false);
-  const [evalResult, setEvalResult] = useState<{ pass: boolean; feedback: string } | null>(null);
+  // Quiz Mode State
+  const [viewMode, setViewMode] = useState<'content' | 'quiz'>('content');
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, number>>({}); // quizId -> selected option (1-4)
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
+  const [quizScore, setQuizScore] = useState<{ correct: number; total: number } | null>(null);
 
   const activeLesson = course?.lessons?.[activeLessonIdx] || null;
   const isLessonCompleted = activeLesson ? completedLessonIds.includes(activeLesson.id) : false;
@@ -73,8 +71,9 @@ export default function StudentLearnPage() {
   // Reset view when lesson changes
   useEffect(() => {
     setViewMode('content');
-    setAnswer('');
-    setEvalResult(null);
+    setSelectedAnswers({});
+    setQuizSubmitted(false);
+    setQuizScore(null);
   }, [activeLessonIdx]);
 
   // Calculate Progress
@@ -161,48 +160,37 @@ export default function StudentLearnPage() {
     setActiveLessonIdx(idx);
   };
 
-  const handleSubmitMilestone = async () => {
-    if (!activeLesson || !answer.trim()) return;
+  const hasQuizzes = activeLesson && activeLesson.quizzes && activeLesson.quizzes.length > 0;
 
-    setIsEvaluating(true);
-    setEvalResult(null);
+  const handleSelectAnswer = (quizId: string, option: number) => {
+    if (quizSubmitted) return;
+    setSelectedAnswers(prev => ({ ...prev, [quizId]: option }));
+  };
 
-    // If milestone missing, create a temporary one
-    const milestone = activeLesson.milestone || {
-        question: `What is the main takeaway from "${activeLesson.title}"?`,
-        expectedCriteria: "Demonstrate understanding of the core concept."
-    };
+  const handleSubmitQuiz = () => {
+    if (!activeLesson?.quizzes || activeLesson.quizzes.length === 0) return;
 
-    try {
-      const res = await fetch('/api/evaluate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          milestone: {
-            question: milestone.question,
-            expectedCriteria: milestone.expectedCriteria
-          },
-          answer
-        })
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Evaluation failed');
-
-      setEvalResult(data);
-      
-      if (data.pass) {
-        handleCompleteLesson(true); // Complete silently
+    const quizzes = activeLesson.quizzes;
+    let correct = 0;
+    for (const quiz of quizzes) {
+      if (selectedAnswers[quiz.id] === quiz.correct_option) {
+        correct++;
       }
-    } catch (error) {
-      console.error('Error evaluating answer:', error);
-      showModal('Failed to evaluate answer. Please try again.', {
-          type: 'error',
-          title: 'Error'
-      });
-    } finally {
-      setIsEvaluating(false);
     }
+
+    setQuizScore({ correct, total: quizzes.length });
+    setQuizSubmitted(true);
+
+    // If all correct, auto-complete the lesson
+    if (correct === quizzes.length) {
+      handleCompleteLesson(true);
+    }
+  };
+
+  const handleRetryQuiz = () => {
+    setSelectedAnswers({});
+    setQuizSubmitted(false);
+    setQuizScore(null);
   };
 
   const handleCompleteLesson = (silent = false) => {
@@ -264,15 +252,19 @@ export default function StudentLearnPage() {
   const handleCompleteAndNext = () => {
     if (!activeLesson) return;
     
-    // If not completed, go to test view to earn completion
     if (!isLessonCompleted) {
-      setViewMode('test');
+      if (hasQuizzes) {
+        // Lesson has quizzes — go to quiz view
+        setViewMode('quiz');
+      } else {
+        // No quizzes — complete directly
+        handleCompleteLesson(false);
+      }
     } else {
       // Move to next lesson or finish course if already completed
       if (activeLessonIdx < (course?.lessons?.length || 0) - 1) {
         setActiveLessonIdx(activeLessonIdx + 1);
       } else {
-        // This is the last lesson, go to dashboard
         router.push('/student/dashboard');
       }
     }
@@ -418,96 +410,148 @@ export default function StudentLearnPage() {
         {/* Main Content Area */}
         <Card className="flex-1 flex flex-col h-full overflow-hidden bg-neutral-950 border-neutral-800 shadow-2xl">
           {activeLesson ? (
-            viewMode === 'test' ? (
-              // TEST VIEW
+            viewMode === 'quiz' && hasQuizzes ? (
+              // QUIZ VIEW
               <div className="flex-1 flex flex-col overflow-hidden bg-neutral-950">
                 <div className="flex-1 overflow-y-auto p-8 scrollbar-thin scrollbar-thumb-neutral-700 scrollbar-track-neutral-900">
                   <button onClick={() => setViewMode('content')} className="text-sm font-medium text-neutral-400 hover:text-white mb-8 flex items-center transition-colors">
-                    &larr; <span className="ml-1">Review Lesson Content</span>
+                    &larr; <span className="ml-1">Back to Lesson</span>
                   </button>
                   
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
                     <div>
-                      <h2 className="text-3xl font-extrabold text-white">Milestone Test</h2>
-                      <p className="text-neutral-400 mt-2">Based on: <span className="text-neutral-200 font-medium">{activeLesson.title}</span></p>
+                      <h2 className="text-3xl font-extrabold text-white">Lesson Quiz</h2>
+                      <p className="text-neutral-400 mt-2">{activeLesson!.quizzes!.length} question{activeLesson!.quizzes!.length > 1 ? 's' : ''} &middot; <span className="text-neutral-200 font-medium">{activeLesson!.title}</span></p>
                     </div>
-                    {activeLesson.payback_amount && activeLesson.payback_amount > 0 && (
-                      <Badge variant="warning">Reward: {activeLesson.payback_amount} PAS</Badge>
+                    {activeLesson!.payback_amount && activeLesson!.payback_amount > 0 && (
+                      <Badge variant="warning">Reward: {activeLesson!.payback_amount} PAS</Badge>
                     )}
                   </div>
-                  
-                  <Card className="p-8 border-indigo-500/30 bg-neutral-900/80 shadow-[0_0_30px_rgba(99,102,241,0.05)]">
-                    <p className="font-medium text-xl text-white mb-8 leading-relaxed">
-                      {activeLesson.milestone?.question || `What is the key takeaway from "${activeLesson.title}"?`}
-                    </p>
-                    
-                    {isLessonCompleted ? (
-                      <div className="bg-green-500/10 border border-green-500/30 text-green-100 p-6 rounded-xl flex items-start">
-                        <CheckCircleIcon className="w-8 h-8 mr-4 flex-shrink-0 text-green-400 drop-shadow-[0_0_5px_rgba(34,197,94,0.5)]" />
-                        <div>
-                          <h4 className="font-bold text-xl text-green-400 mb-1">Test Passed!</h4>
-                          <p className="text-green-200/80">You have successfully completed this milestone and earned your PAS tokens.</p>
-                          
-                          {activeLessonIdx < (course?.lessons?.length || 0) - 1 && (
-                            <Button className="mt-6" onClick={() => handleSelectLesson(activeLessonIdx + 1)}>
-                              Continue to Next Lesson
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="relative">
-                          <textarea
-                            value={answer}
-                            onChange={(e) => setAnswer(e.target.value)}
-                            placeholder="Type your answer to demonstrate your understanding..."
-                            className="w-full h-48 p-5 bg-neutral-950 border border-neutral-700 rounded-xl mb-8 text-lg text-white placeholder-neutral-600 resize-none shadow-inner focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
-                            disabled={isEvaluating}
-                          />
-                        </div>
-                        
-                        {/* Evaluation Result Area */}
-                        {evalResult && !isLessonCompleted && (
-                          <div className={`p-5 rounded-xl border flex items-start mb-8 ${
-                            evalResult.pass ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'
-                          }`}>
-                            {evalResult.pass ? (
-                              <CheckCircleIcon className="w-7 h-7 mr-4 text-green-400 flex-shrink-0 mt-0.5" />
-                            ) : (
-                              <XCircleIcon className="w-7 h-7 mr-4 text-red-400 flex-shrink-0 mt-0.5" />
-                            )}
-                            <div>
-                              <h4 className={`font-bold text-lg mb-1 ${evalResult.pass ? 'text-green-400' : 'text-red-400'}`}>
-                                {evalResult.pass ? 'Verification Successful!' : 'Needs Revision'}
-                              </h4>
-                              <p className={`text-base ${evalResult.pass ? 'text-green-200/80' : 'text-red-200/80'}`}>
-                                {evalResult.feedback}
-                              </p>
-                            </div>
-                          </div>
-                        )}
 
-                        <div className="flex justify-end pt-4 border-t border-neutral-800">
-                          <Button 
-                            onClick={handleSubmitMilestone} 
-                            disabled={!answer.trim() || isEvaluating}
-                            className="px-8 py-3.5 text-base font-bold shadow-[0_0_15px_rgba(99,102,241,0.2)]"
-                          >
-                            {isEvaluating ? (
-                              <span className="flex items-center">
-                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                AI is Evaluating...
-                              </span>
-                            ) : 'Submit for AI Grading'}
-                          </Button>
-                        </div>
-                      </>
+                  {/* Quiz Score Banner */}
+                  {quizSubmitted && quizScore && (
+                    <div className={`mb-8 p-6 rounded-xl border flex items-start ${
+                      quizScore.correct === quizScore.total 
+                        ? 'bg-green-500/10 border-green-500/30' 
+                        : 'bg-red-500/10 border-red-500/30'
+                    }`}>
+                      {quizScore.correct === quizScore.total ? (
+                        <CheckCircleIcon className="w-8 h-8 mr-4 flex-shrink-0 text-green-400 drop-shadow-[0_0_5px_rgba(34,197,94,0.5)]" />
+                      ) : (
+                        <XCircleIcon className="w-8 h-8 mr-4 flex-shrink-0 text-red-400" />
+                      )}
+                      <div>
+                        <h4 className={`font-bold text-xl mb-1 ${quizScore.correct === quizScore.total ? 'text-green-400' : 'text-red-400'}`}>
+                          {quizScore.correct === quizScore.total ? 'Perfect Score!' : `${quizScore.correct}/${quizScore.total} Correct`}
+                        </h4>
+                        <p className={quizScore.correct === quizScore.total ? 'text-green-200/80' : 'text-red-200/80'}>
+                          {quizScore.correct === quizScore.total 
+                            ? 'You answered all questions correctly. Lesson completed!' 
+                            : 'You need to answer all questions correctly to complete this lesson. Review the incorrect answers and try again.'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Quiz Questions */}
+                  <div className="space-y-6">
+                    {activeLesson!.quizzes!.map((quiz, qIdx) => {
+                      const selected = selectedAnswers[quiz.id];
+                      const isCorrect = quizSubmitted && selected === quiz.correct_option;
+                      const isWrong = quizSubmitted && selected !== undefined && selected !== quiz.correct_option;
+                      const options = [
+                        { label: 'A', value: 1, text: quiz.option_a },
+                        { label: 'B', value: 2, text: quiz.option_b },
+                        { label: 'C', value: 3, text: quiz.option_c },
+                        { label: 'D', value: 4, text: quiz.option_d },
+                      ];
+
+                      return (
+                        <Card key={quiz.id} className={`p-6 border transition-colors ${
+                          quizSubmitted 
+                            ? (isCorrect ? 'border-green-500/30 bg-green-500/5' : isWrong ? 'border-red-500/30 bg-red-500/5' : 'border-neutral-800 bg-neutral-900/80')
+                            : 'border-neutral-800 bg-neutral-900/80'
+                        }`}>
+                          <p className="font-semibold text-lg text-white mb-5">
+                            <span className="text-indigo-400 mr-2">Q{qIdx + 1}.</span>
+                            {quiz.question}
+                          </p>
+                          <div className="grid grid-cols-1 gap-3">
+                            {options.map(opt => {
+                              const isSelected = selected === opt.value;
+                              const isThisCorrect = quizSubmitted && opt.value === quiz.correct_option;
+                              const isThisWrong = quizSubmitted && isSelected && opt.value !== quiz.correct_option;
+
+                              return (
+                                <button
+                                  key={opt.value}
+                                  onClick={() => handleSelectAnswer(quiz.id, opt.value)}
+                                  disabled={quizSubmitted}
+                                  className={`w-full text-left p-4 rounded-xl border text-sm font-medium transition-all flex items-center ${
+                                    isThisCorrect
+                                      ? 'border-green-500/50 bg-green-500/10 text-green-200'
+                                      : isThisWrong
+                                        ? 'border-red-500/50 bg-red-500/10 text-red-200'
+                                        : isSelected
+                                          ? 'border-indigo-500/50 bg-indigo-500/10 text-indigo-200'
+                                          : 'border-neutral-700 bg-neutral-800/50 text-neutral-300 hover:border-neutral-600 hover:bg-neutral-800'
+                                  } ${quizSubmitted ? 'cursor-default' : 'cursor-pointer'}`}
+                                >
+                                  <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold mr-3 flex-shrink-0 ${
+                                    isThisCorrect
+                                      ? 'bg-green-500/20 text-green-400'
+                                      : isThisWrong
+                                        ? 'bg-red-500/20 text-red-400'
+                                        : isSelected
+                                          ? 'bg-indigo-500/20 text-indigo-400'
+                                          : 'bg-neutral-700/50 text-neutral-400'
+                                  }`}>
+                                    {opt.label}
+                                  </span>
+                                  <span className="flex-1">{opt.text}</span>
+                                  {isThisCorrect && (
+                                    <CheckCircleIcon className="w-5 h-5 text-green-400 flex-shrink-0 ml-2" />
+                                  )}
+                                  {isThisWrong && (
+                                    <XCircleIcon className="w-5 h-5 text-red-400 flex-shrink-0 ml-2" />
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </Card>
+                      );
+                    })}
+                  </div>
+
+                  {/* Submit / Retry Buttons */}
+                  <div className="flex justify-end pt-8 pb-4">
+                    {!quizSubmitted ? (
+                      <Button 
+                        onClick={handleSubmitQuiz} 
+                        disabled={Object.keys(selectedAnswers).length < (activeLesson!.quizzes!.length)}
+                        className="px-8 py-3.5 text-base font-bold shadow-[0_0_15px_rgba(99,102,241,0.2)]"
+                      >
+                        Submit Answers
+                      </Button>
+                    ) : quizScore && quizScore.correct < quizScore.total ? (
+                      <Button 
+                        onClick={handleRetryQuiz}
+                        className="px-8 py-3.5 text-base font-bold shadow-[0_0_15px_rgba(99,102,241,0.2)]"
+                      >
+                        Try Again
+                      </Button>
+                    ) : (
+                      activeLessonIdx < (course?.lessons?.length || 0) - 1 && (
+                        <Button 
+                          onClick={() => handleSelectLesson(activeLessonIdx + 1)}
+                          className="px-8 py-3.5 text-base font-bold shadow-[0_0_15px_rgba(99,102,241,0.2)]"
+                        >
+                          Continue to Next Lesson
+                        </Button>
+                      )
                     )}
-                  </Card>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -603,7 +647,7 @@ export default function StudentLearnPage() {
                 >
                   {isLessonCompleted 
                     ? (activeLessonIdx < (course?.lessons?.length || 0) - 1 ? 'Next Lesson →' : 'Finish Course')
-                    : 'Take Quiz to Complete'}
+                    : (hasQuizzes ? 'Take Quiz to Complete' : 'Complete Lesson')}
                 </Button>
               </div>
             </div>
