@@ -74,6 +74,9 @@ export default function TeacherCreatePage() {
   const [generatingQuizFor, setGeneratingQuizFor] = useState<number | null>(
     null,
   );
+  const [quizCountPerLesson, setQuizCountPerLesson] = useState<
+    Record<number, number>
+  >({});
   const [role, setRole] = useState<"unknown" | "teacher" | "student">(
     "unknown",
   );
@@ -335,6 +338,7 @@ export default function TeacherCreatePage() {
 
   const handleGenQuiz = async (lessonIndex: number) => {
     const lesson = lessons[lessonIndex];
+    const numQuestions = quizCountPerLesson[lessonIndex] ?? 3;
 
     if (!lesson.id) {
       showModal(
@@ -349,7 +353,7 @@ export default function TeacherCreatePage() {
 
     setGeneratingQuizFor(lessonIndex);
     try {
-      const result = await generateQuiz(lesson.id);
+      const result = await generateQuiz(lesson.id, numQuestions);
 
       if (!result || result.length === 0) {
         showModal("The AI was unable to generate quiz questions for this lesson. Try adding more content or a video URL.", {
@@ -666,25 +670,44 @@ export default function TeacherCreatePage() {
                         Quiz Questions ({lesson.quizzes.length})
                       </h4>
                       <div className="flex gap-x-4">
-                        <Button
-                          variant="outline"
-                          type="button"
-                          className="flex items-center text-xs py-1.5 px-3"
-                          onClick={() => handleGenQuiz(idx)}
-                          disabled={generatingQuizFor !== null}
-                        >
-                          {generatingQuizFor === idx ? (
-                            <>
-                              <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-current mr-1.5" />
-                              Generating...
-                            </>
-                          ) : (
-                            <>
-                              <BotIcon className="w-3.5 h-3.5 mr-1.5" />{" "}
-                              Generate Questions
-                            </>
-                          )}
-                        </Button>
+                        <div className="flex items-center gap-x-2">
+                          <select
+                            value={quizCountPerLesson[idx] ?? 3}
+                            onChange={(e) =>
+                              setQuizCountPerLesson((prev) => ({
+                                ...prev,
+                                [idx]: parseInt(e.target.value),
+                              }))
+                            }
+                            disabled={generatingQuizFor !== null}
+                            className="bg-neutral-800 border border-neutral-700 text-neutral-300 text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
+                          >
+                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                              <option key={n} value={n}>
+                                {n} Q{n > 1 ? "s" : ""}
+                              </option>
+                            ))}
+                          </select>
+                          <Button
+                            variant="outline"
+                            type="button"
+                            className="flex items-center text-xs py-1.5 px-3"
+                            onClick={() => handleGenQuiz(idx)}
+                            disabled={generatingQuizFor !== null}
+                          >
+                            {generatingQuizFor === idx ? (
+                              <>
+                                <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-current mr-1.5" />
+                                Generating...
+                              </>
+                            ) : (
+                              <>
+                                <BotIcon className="w-3.5 h-3.5 mr-1.5" />{" "}
+                                Generate
+                              </>
+                            )}
+                          </Button>
+                        </div>
                         <Button
                           variant="outline"
                           type="button"

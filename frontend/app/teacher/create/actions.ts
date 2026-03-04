@@ -194,7 +194,10 @@ const outPutSchema = z.array(
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GOOGLE_API_KEY,
 });
-export async function generateQuiz(lessonId: string) {
+export async function generateQuiz(lessonId: string, numQuestions: number = 3) {
+  // Clamp to a sensible range
+  const count = Math.max(1, Math.min(numQuestions, 10));
+
   const { data, error } = await supabase
     .from("lesson")
     .select("*")
@@ -207,39 +210,53 @@ export async function generateQuiz(lessonId: string) {
 
   let subtitle: string | null = null;
   if (data.video_url) {
-    const url = new URL(data.video_url);
+    try {
+      const url = new URL(data.video_url);
 
-    const info = await ytdlp.getInfoAsync(
-      `https://www.youtube.com/watch?v=${url.searchParams.get("v")}`,
-    );
-    let subtitleUrl: string | null = null;
-    // @ts-expect-error: yo
-    for (const autoCap of info.automatic_captions.en) {
-      if (autoCap.ext === "srt") {
-        subtitleUrl = autoCap.url;
-        break;
+      const info = await ytdlp.getInfoAsync(
+        `https://www.youtube.com/watch?v=${url.searchParams.get("v")}`,
+      );
+      let subtitleUrl: string | null = null;
+      // @ts-expect-error: yo
+      for (const autoCap of info.automatic_captions.en) {
+        if (autoCap.ext === "srt") {
+          subtitleUrl = autoCap.url;
+          break;
+        }
       }
-    }
-    if (subtitleUrl) {
-      const res = await fetch(subtitleUrl);
-      subtitle = await res.text();
+      if (subtitleUrl) {
+        const res = await fetch(subtitleUrl);
+        subtitle = await res.text();
+      }
+    } catch (e) {
+      console.error("Failed to fetch video subtitles:", e);
+      // Continue without subtitles — title + description are still available
     }
   }
 
-  const systemPrompt = `You are an assistant, your mission is to help teachers generate quiz questions with provided subtitle in English, lesson description and title. You must generate 3 questions.`;
+  const systemPrompt = `You are an expert educational quiz designer for an online learning platform. Your task is to create high-quality multiple-choice questions that assess student comprehension of a lesson.
 
-  let prompt = "";
+Guidelines:
+- Generate exactly ${count} question${count > 1 ? "s" : ""}.
+- Each question must have exactly 4 options (A, B, C, D) with exactly one correct answer.
+- Questions should test understanding, not just rote memorization — include application and analysis-level questions when possible.
+- Distribute the correct answer across options A–D roughly evenly; do NOT always make the same option correct.
+- All incorrect options (distractors) must be plausible — avoid obviously wrong or joke answers.
+- Keep question and option text concise but unambiguous.
+- Cover different parts of the lesson content; avoid asking the same concept twice.
+- If video subtitles are provided, use them as the primary source of content; the title and description provide additional context.`;
+
+  let prompt = `## Lesson Information\n\n**Title:** ${data.title}\n`;
+
+  if (data.description) {
+    prompt += `\n**Description:**\n${data.description}\n`;
+  }
+
   if (subtitle) {
-    prompt += `Subtitle here:
-    ${subtitle}
-    `;
+    prompt += `\n**Video Transcript:**\n${subtitle}\n`;
   }
-  prompt += `
-  Title: ${data.title}
 
-  Description:
-  ${data.description}
-  `;
+  prompt += `\nGenerate ${count} quiz question${count > 1 ? "s" : ""} based on the lesson content above.`;
 
   const { output } = await generateText({
     model: google("gemini-2.5-flash"),
