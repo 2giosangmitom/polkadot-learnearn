@@ -95,6 +95,7 @@ export async function POST(req: Request) {
   }
 
   // Get or create user
+  // eslint-disable-next-line prefer-const
   let { data: user, error: userError } = await supabase
     .from('user')
     .select('id')

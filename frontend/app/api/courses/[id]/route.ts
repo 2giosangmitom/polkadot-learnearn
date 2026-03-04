@@ -52,7 +52,8 @@ export async function GET(
 
   // Fetch quizzes for all lessons
   const lessonIds = (lessons || []).map((l) => l.id);
-  let quizzesByLesson: Record<string, any[]> = {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const quizzesByLesson: Record<string, any[]> = {};
 
   if (lessonIds.length > 0) {
     const { data: quizzes, error: quizError } = await supabase

@@ -1,7 +1,15 @@
-'use server';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+"use server";
 
-import { createCourse, updateCourse as updateCourseRecord } from "@/lib/courses/courseService";
+import {
+  createCourse,
+  updateCourse as updateCourseRecord,
+} from "@/lib/courses/courseService";
 import { supabase } from "@/lib/supabase/client";
+import { YtDlp } from "ytdlp-nodejs";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { generateText, Output } from "ai";
+import z from "zod";
 
 export async function createCourseAction(formData: FormData) {
   const payloadRaw = formData.get("course");
@@ -41,27 +49,28 @@ export async function updateCourseAction(courseId: string, formData: FormData) {
   if (lessons && Array.isArray(lessons)) {
     // Get existing lessons
     const { data: existingLessons } = await supabase
-      .from('lesson')
-      .select('id')
-      .eq('course_id', courseId);
+      .from("lesson")
+      .select("id")
+      .eq("course_id", courseId);
 
-    const existingLessonIds = new Set(existingLessons?.map(l => l.id) || []);
-    const providedLessonIds = new Set(lessons.filter(l => l.id).map(l => l.id));
+    const existingLessonIds = new Set(existingLessons?.map((l) => l.id) || []);
+    const providedLessonIds = new Set(
+      lessons.filter((l) => l.id).map((l) => l.id),
+    );
 
     // Delete lessons that are no longer in the list
     // (cascading quiz deletion should be handled by FK, but we clean up explicitly)
-    const lessonsToDelete = Array.from(existingLessonIds).filter(id => !providedLessonIds.has(id));
+    const lessonsToDelete = Array.from(existingLessonIds).filter(
+      (id) => !providedLessonIds.has(id),
+    );
     if (lessonsToDelete.length > 0) {
       // Delete quizzes for removed lessons first
       await supabase
-        .from('lesson_quiz')
+        .from("lesson_quiz")
         .delete()
-        .in('lesson_id', lessonsToDelete);
+        .in("lesson_id", lessonsToDelete);
 
-      await supabase
-        .from('lesson')
-        .delete()
-        .in('id', lessonsToDelete);
+      await supabase.from("lesson").delete().in("id", lessonsToDelete);
     }
 
     // Update existing lessons and create new ones
@@ -81,26 +90,26 @@ export async function updateCourseAction(courseId: string, formData: FormData) {
       if (lesson.id && existingLessonIds.has(lesson.id)) {
         // Update existing lesson
         await supabase
-          .from('lesson')
+          .from("lesson")
           .update({
             ...lessonData,
             update_at: new Date().toISOString(),
           })
-          .eq('id', lesson.id);
+          .eq("id", lesson.id);
         lessonId = lesson.id;
       } else {
         // Create new lesson
         const { data: newLesson, error: newLessonError } = await supabase
-          .from('lesson')
+          .from("lesson")
           .insert({
             ...lessonData,
             course_id: courseId,
           })
-          .select('id')
+          .select("id")
           .single();
 
         if (newLessonError || !newLesson) {
-          console.error('Failed to create lesson:', newLessonError?.message);
+          console.error("Failed to create lesson:", newLessonError?.message);
           continue;
         }
         lessonId = newLesson.id;
@@ -111,20 +120,21 @@ export async function updateCourseAction(courseId: string, formData: FormData) {
 
       // Get existing quizzes for this lesson
       const { data: existingQuizzes } = await supabase
-        .from('lesson_quiz')
-        .select('id')
-        .eq('lesson_id', lessonId);
+        .from("lesson_quiz")
+        .select("id")
+        .eq("lesson_id", lessonId);
 
-      const existingQuizIds = new Set(existingQuizzes?.map(q => q.id) || []);
-      const providedQuizIds = new Set(quizzes.filter((q: any) => q.id).map((q: any) => q.id));
+      const existingQuizIds = new Set(existingQuizzes?.map((q) => q.id) || []);
+      const providedQuizIds = new Set(
+        quizzes.filter((q: any) => q.id).map((q: any) => q.id),
+      );
 
       // Delete quizzes that are no longer in the list
-      const quizzesToDelete = Array.from(existingQuizIds).filter(id => !providedQuizIds.has(id));
+      const quizzesToDelete = Array.from(existingQuizIds).filter(
+        (id) => !providedQuizIds.has(id),
+      );
       if (quizzesToDelete.length > 0) {
-        await supabase
-          .from('lesson_quiz')
-          .delete()
-          .in('id', quizzesToDelete);
+        await supabase.from("lesson_quiz").delete().in("id", quizzesToDelete);
       }
 
       // Upsert quizzes
@@ -145,19 +155,23 @@ export async function updateCourseAction(courseId: string, formData: FormData) {
         if (quiz.id && existingQuizIds.has(quiz.id)) {
           // Update existing quiz
           const { error: updateQuizError } = await supabase
-            .from('lesson_quiz')
+            .from("lesson_quiz")
             .update(quizData)
-            .eq('id', quiz.id);
+            .eq("id", quiz.id);
           if (updateQuizError) {
-            throw new Error(`Failed to update quiz: ${updateQuizError.message}`);
+            throw new Error(
+              `Failed to update quiz: ${updateQuizError.message}`,
+            );
           }
         } else {
           // Insert new quiz
           const { error: insertQuizError } = await supabase
-            .from('lesson_quiz')
+            .from("lesson_quiz")
             .insert(quizData);
           if (insertQuizError) {
-            throw new Error(`Failed to insert quiz: ${insertQuizError.message}`);
+            throw new Error(
+              `Failed to insert quiz: ${insertQuizError.message}`,
+            );
           }
         }
       }
@@ -165,6 +179,76 @@ export async function updateCourseAction(courseId: string, formData: FormData) {
   }
 }
 
-export async function deleteCourse(courseId: string) {
-  // Server action to delete a course
+// Use AI to generate quizzes
+const ytdlp = new YtDlp();
+const outPutSchema = z.array(
+  z.object({
+    question: z.string(),
+    option_a: z.string(),
+    option_b: z.string(),
+    option_c: z.string(),
+    option_d: z.string(),
+    correct_option: z.number(),
+  }),
+);
+const google = createGoogleGenerativeAI({
+  apiKey: process.env.GOOGLE_API_KEY,
+});
+export async function generateQuiz(lessonId: string) {
+  const { data, error } = await supabase
+    .from("lesson")
+    .select("*")
+    .eq("id", lessonId)
+    .single();
+
+  if (error) {
+    throw new Error("Unknown database error occurred");
+  }
+
+  let subtitle: string | null = null;
+  if (data.video_url) {
+    const url = new URL(data.video_url);
+
+    const info = await ytdlp.getInfoAsync(
+      `https://www.youtube.com/watch?v=${url.searchParams.get("v")}`,
+    );
+    let subtitleUrl: string | null = null;
+    // @ts-expect-error: yo
+    for (const autoCap of info.automatic_captions.en) {
+      if (autoCap.ext === "srt") {
+        subtitleUrl = autoCap.url;
+        break;
+      }
+    }
+    if (subtitleUrl) {
+      const res = await fetch(subtitleUrl);
+      subtitle = await res.text();
+    }
+  }
+
+  const systemPrompt = `You are an assistant, your mission is to help teachers generate quiz questions with provided subtitle in English, lesson description and title. You must generate 3 questions.`;
+
+  let prompt = "";
+  if (subtitle) {
+    prompt += `Subtitle here:
+    ${subtitle}
+    `;
+  }
+  prompt += `
+  Title: ${data.title}
+
+  Description:
+  ${data.description}
+  `;
+
+  const { output } = await generateText({
+    model: google("gemini-2.5-flash"),
+    system: systemPrompt,
+    output: Output.object({
+      schema: outPutSchema,
+    }),
+    prompt,
+  });
+
+  return output;
 }

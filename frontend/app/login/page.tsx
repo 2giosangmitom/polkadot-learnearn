@@ -8,6 +8,7 @@ import { useWallet } from '@/lib/hooks';
 import { BookOpen, GraduationCap, Sparkles } from 'lucide-react';
 import Modal, { useModal } from '@/components/Modal';
 import { getUserRoleState, UserRoleState } from '@/types/userRole';
+import Link from 'next/link';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -274,9 +275,9 @@ export default function LoginPage() {
         <div className="mt-6 text-center text-sm text-neutral-500">
           <p>
             New here?{' '}
-            <a href="/" className="text-indigo-400 hover:text-indigo-300 font-medium">
+            <Link href="/" className="text-indigo-400 hover:text-indigo-300 font-medium">
               Learn more about the platform
-            </a>
+            </Link>
           </p>
         </div>
       </div>

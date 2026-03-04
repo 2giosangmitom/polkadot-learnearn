@@ -1,13 +1,24 @@
-'use client';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+"use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { createCourseAction, updateCourseAction } from './actions';
-import { Layout } from '@/components/Layout';
-import { Card, Button, Input, Textarea, Label } from '@/components/SharedUI';
-import { PlusIcon, TrashIcon, ChevronUpIcon, ChevronDownIcon } from '@/components/Icons';
-import { useWallet } from '@/lib/hooks/useWallet';
-import Modal, { useModal } from '@/components/Modal';
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  createCourseAction,
+  generateQuiz,
+  updateCourseAction,
+} from "./actions";
+import { Layout } from "@/components/Layout";
+import { Card, Button, Input, Textarea, Label } from "@/components/SharedUI";
+import {
+  PlusIcon,
+  TrashIcon,
+  ChevronUpIcon,
+  ChevronDownIcon,
+  BotIcon,
+} from "@/components/Icons";
+import { useWallet } from "@/lib/hooks/useWallet";
+import Modal, { useModal } from "@/components/Modal";
 
 interface QuizForm {
   id?: string;
@@ -29,45 +40,47 @@ interface LessonForm {
 }
 
 const EMPTY_QUIZ: QuizForm = {
-  question: '',
-  optionA: '',
-  optionB: '',
-  optionC: '',
-  optionD: '',
+  question: "",
+  optionA: "",
+  optionB: "",
+  optionC: "",
+  optionD: "",
   correctOption: 1,
 };
 
 const EMPTY_LESSON: LessonForm = {
-  title: '',
-  description: '',
-  videoUrl: '',
-  paybackAmount: '',
+  title: "",
+  description: "",
+  videoUrl: "",
+  paybackAmount: "",
   quizzes: [],
 };
 
 export default function TeacherCreatePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const courseId = searchParams.get('id');
+  const courseId = searchParams.get("id");
   const isEditMode = !!courseId;
 
   const { address, isConnected } = useWallet();
   const { modalState, showModal, hideModal } = useModal();
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [cost, setCost] = useState('');
-  const [thumbnailUrl, setThumbnailUrl] = useState('');
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [cost, setCost] = useState("");
+  const [thumbnailUrl, setThumbnailUrl] = useState("");
   const [lessons, setLessons] = useState<LessonForm[]>([EMPTY_LESSON]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [role, setRole] = useState<'unknown' | 'teacher' | 'student'>('unknown');
+  const [role, setRole] = useState<"unknown" | "teacher" | "student">(
+    "unknown",
+  );
   const [checkingRole, setCheckingRole] = useState(false);
   const [roleError, setRoleError] = useState<string | null>(null);
 
   // Check user role
   useEffect(() => {
     if (!address) {
-      setRole('unknown');
+      setRole("unknown");
       return;
     }
 
@@ -78,14 +91,14 @@ export default function TeacherCreatePage() {
       .then(async (res) => {
         const body = await res.json();
         if (!res.ok) {
-          throw new Error(body.error || 'Failed to fetch user');
+          throw new Error(body.error || "Failed to fetch user");
         }
         const userRole = body.user?.role;
-        setRole(userRole === 2 ? 'teacher' : 'student');
+        setRole(userRole === 2 ? "teacher" : "student");
       })
       .catch((err) => {
-        console.error('Unable to verify role', err);
-        setRoleError('Unable to verify teacher role.');
+        console.error("Unable to verify role", err);
+        setRoleError("Unable to verify teacher role.");
       })
       .finally(() => setCheckingRole(false));
   }, [address]);
@@ -98,13 +111,13 @@ export default function TeacherCreatePage() {
     fetch(`/api/courses/${courseId}`)
       .then(async (res) => {
         const body = await res.json();
-        if (!res.ok) throw new Error(body.error || 'Failed to load course');
+        if (!res.ok) throw new Error(body.error || "Failed to load course");
 
         const course = body.courses;
-        setTitle(course.title || '');
-        setDescription(course.description || '');
-        setCost(course.cost?.toString() || '');
-        setThumbnailUrl(course.thumbnail_url || '');
+        setTitle(course.title || "");
+        setDescription(course.description || "");
+        setCost(course.cost?.toString() || "");
+        setThumbnailUrl(course.thumbnail_url || "");
 
         if (course.lessons && course.lessons.length > 0) {
           // Sort lessons by lesson_index to maintain proper order
@@ -115,38 +128,43 @@ export default function TeacherCreatePage() {
           setLessons(
             sortedLessons.map((l: any) => ({
               id: l.id,
-              title: l.title || '',
-              description: l.description || '',
-              videoUrl: l.video_url || '',
-              paybackAmount: l.payback_amount?.toString() || '',
+              title: l.title || "",
+              description: l.description || "",
+              videoUrl: l.video_url || "",
+              paybackAmount: l.payback_amount?.toString() || "",
               quizzes: (l.quizzes || [])
-                .sort((a: any, b: any) => (a.quiz_index ?? 0) - (b.quiz_index ?? 0))
+                .sort(
+                  (a: any, b: any) => (a.quiz_index ?? 0) - (b.quiz_index ?? 0),
+                )
                 .map((q: any) => ({
                   id: q.id,
-                  question: q.question || '',
-                  optionA: q.option_a || '',
-                  optionB: q.option_b || '',
-                  optionC: q.option_c || '',
-                  optionD: q.option_d || '',
+                  question: q.question || "",
+                  optionA: q.option_a || "",
+                  optionB: q.option_b || "",
+                  optionC: q.option_c || "",
+                  optionD: q.option_d || "",
                   correctOption: q.correct_option ?? 1,
                 })),
-            }))
+            })),
           );
         } else {
           setLessons([EMPTY_LESSON]);
         }
       })
       .catch((err) => {
-        console.error('Error loading course:', err);
-        showModal('Unable to load course data', {
-          type: 'error',
-          title: 'Error'
+        console.error("Error loading course:", err);
+        showModal("Unable to load course data", {
+          type: "error",
+          title: "Error",
         });
       })
       .finally(() => setIsLoading(false));
   }, [courseId, isConnected, showModal]);
 
-  const canSubmit = useMemo(() => isConnected && role === 'teacher', [isConnected, role]);
+  const canSubmit = useMemo(
+    () => isConnected && role === "teacher",
+    [isConnected, role],
+  );
 
   const addLesson = () => {
     setLessons([...lessons, { ...EMPTY_LESSON }]);
@@ -156,7 +174,11 @@ export default function TeacherCreatePage() {
     setLessons(lessons.filter((_, i) => i !== index));
   };
 
-  const updateLesson = (index: number, field: keyof LessonForm, value: string) => {
+  const updateLesson = (
+    index: number,
+    field: keyof LessonForm,
+    value: string,
+  ) => {
     const updatedLessons = [...lessons];
     updatedLessons[index] = { ...updatedLessons[index], [field]: value };
     setLessons(updatedLessons);
@@ -165,14 +187,20 @@ export default function TeacherCreatePage() {
   const moveLessonUp = (index: number) => {
     if (index === 0) return;
     const updatedLessons = [...lessons];
-    [updatedLessons[index - 1], updatedLessons[index]] = [updatedLessons[index], updatedLessons[index - 1]];
+    [updatedLessons[index - 1], updatedLessons[index]] = [
+      updatedLessons[index],
+      updatedLessons[index - 1],
+    ];
     setLessons(updatedLessons);
   };
 
   const moveLessonDown = (index: number) => {
     if (index >= lessons.length - 1) return;
     const updatedLessons = [...lessons];
-    [updatedLessons[index], updatedLessons[index + 1]] = [updatedLessons[index + 1], updatedLessons[index]];
+    [updatedLessons[index], updatedLessons[index + 1]] = [
+      updatedLessons[index + 1],
+      updatedLessons[index],
+    ];
     setLessons(updatedLessons);
   };
 
@@ -189,16 +217,29 @@ export default function TeacherCreatePage() {
     const updatedLessons = [...lessons];
     updatedLessons[lessonIndex] = {
       ...updatedLessons[lessonIndex],
-      quizzes: updatedLessons[lessonIndex].quizzes.filter((_, i) => i !== quizIndex),
+      quizzes: updatedLessons[lessonIndex].quizzes.filter(
+        (_, i) => i !== quizIndex,
+      ),
     };
     setLessons(updatedLessons);
   };
 
-  const updateQuiz = (lessonIndex: number, quizIndex: number, field: keyof QuizForm, value: string | number) => {
+  const updateQuiz = (
+    lessonIndex: number,
+    quizIndex: number,
+    field: keyof QuizForm,
+    value: string | number,
+  ) => {
     const updatedLessons = [...lessons];
     const updatedQuizzes = [...updatedLessons[lessonIndex].quizzes];
-    updatedQuizzes[quizIndex] = { ...updatedQuizzes[quizIndex], [field]: value };
-    updatedLessons[lessonIndex] = { ...updatedLessons[lessonIndex], quizzes: updatedQuizzes };
+    updatedQuizzes[quizIndex] = {
+      ...updatedQuizzes[quizIndex],
+      [field]: value,
+    };
+    updatedLessons[lessonIndex] = {
+      ...updatedLessons[lessonIndex],
+      quizzes: updatedQuizzes,
+    };
     setLessons(updatedLessons);
   };
 
@@ -206,9 +247,9 @@ export default function TeacherCreatePage() {
     if (e) e.preventDefault();
 
     if (!title || parseFloat(cost) < 0) {
-      showModal('Please fill in all required fields (Title, Valid Price)', {
-        type: 'error',
-        title: 'Missing Information'
+      showModal("Please fill in all required fields (Title, Valid Price)", {
+        type: "error",
+        title: "Missing Information",
       });
       return;
     }
@@ -217,11 +258,11 @@ export default function TeacherCreatePage() {
 
     try {
       if (!address) {
-        throw new Error('Please connect wallet before creating a course.');
+        throw new Error("Please connect wallet before creating a course.");
       }
 
-      if (role !== 'teacher') {
-        throw new Error('Only teachers can create/edit courses.');
+      if (role !== "teacher") {
+        throw new Error("Only teachers can create/edit courses.");
       }
 
       const formData = new FormData();
@@ -238,7 +279,9 @@ export default function TeacherCreatePage() {
             title: lesson.title,
             description: lesson.description || null,
             video_url: lesson.videoUrl || null,
-            payback_amount: lesson.paybackAmount ? parseFloat(lesson.paybackAmount) : null,
+            payback_amount: lesson.paybackAmount
+              ? parseFloat(lesson.paybackAmount)
+              : null,
             lesson_index: index,
             quizzes: lesson.quizzes
               .filter((q) => q.question)
@@ -255,49 +298,56 @@ export default function TeacherCreatePage() {
           })),
       };
 
-      formData.append('course', JSON.stringify(courseData));
+      formData.append("course", JSON.stringify(courseData));
 
       if (isEditMode && courseId) {
         await updateCourseAction(courseId, formData);
-        showModal('Course updated successfully!', {
-          type: 'success',
-          title: 'Success',
+        showModal("Course updated successfully!", {
+          type: "success",
+          title: "Success",
           onConfirm: () => {
-            router.push('/teacher/courses');
-          }
+            router.push("/teacher/courses");
+          },
         });
       } else {
         await createCourseAction(formData);
-        showModal('Course created successfully!', {
-          type: 'success',
-          title: 'Success',
+        showModal("Course created successfully!", {
+          type: "success",
+          title: "Success",
           onConfirm: () => {
-            router.push('/teacher/courses');
-          }
+            router.push("/teacher/courses");
+          },
         });
       }
     } catch (error) {
-      console.error('Error saving course:', error);
-      showModal((error as Error).message || 'Unable to save course', {
-        type: 'error',
-        title: 'Error'
+      console.error("Error saving course:", error);
+      showModal((error as Error).message || "Unable to save course", {
+        type: "error",
+        title: "Error",
       });
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const handleGenQuiz = async (lessonId: string) => {
+    await generateQuiz(lessonId);
+  };
+
   const handleCancel = () => {
-    showModal('Are you sure you want to cancel? All unsaved changes will be lost.', {
-      type: 'warning',
-      title: 'Confirm',
-      showCancel: true,
-      confirmText: 'Discard',
-      cancelText: 'Go Back',
-      onConfirm: () => {
-        router.push('/teacher/courses');
-      }
-    });
+    showModal(
+      "Are you sure you want to cancel? All unsaved changes will be lost.",
+      {
+        type: "warning",
+        title: "Confirm",
+        showCancel: true,
+        confirmText: "Discard",
+        cancelText: "Go Back",
+        onConfirm: () => {
+          router.push("/teacher/courses");
+        },
+      },
+    );
   };
 
   if (isLoading) {
@@ -316,12 +366,22 @@ export default function TeacherCreatePage() {
       <div className="max-w-4xl mx-auto pb-20 anim-fade-in-up">
         <div className="flex items-center justify-between mb-8 pb-4 border-b border-neutral-800">
           <h1 className="text-2xl font-bold text-white tracking-tight">
-            {isEditMode ? 'Edit Curriculum' : 'Design New Course'}
+            {isEditMode ? "Edit Curriculum" : "Design New Course"}
           </h1>
           <div className="flex space-x-3">
-            <Button variant="outline" onClick={handleCancel}>Discard</Button>
-            <Button onClick={() => handleSubmit()} disabled={!canSubmit || isSubmitting} className="px-6">
-              {isSubmitting ? 'Saving...' : isEditMode ? 'Update Course' : 'Publish Course'}
+            <Button variant="outline" onClick={handleCancel}>
+              Discard
+            </Button>
+            <Button
+              onClick={() => handleSubmit()}
+              disabled={!canSubmit || isSubmitting}
+              className="px-6"
+            >
+              {isSubmitting
+                ? "Saving..."
+                : isEditMode
+                  ? "Update Course"
+                  : "Publish Course"}
             </Button>
           </div>
         </div>
@@ -339,7 +399,7 @@ export default function TeacherCreatePage() {
           </div>
         )}
 
-        {isConnected && !checkingRole && role === 'student' && (
+        {isConnected && !checkingRole && role === "student" && (
           <div className="mb-6 p-4 bg-amber-900/20 border border-amber-600/30 rounded-xl text-amber-300">
             <p className="font-medium">⚠️ This account is not a teacher</p>
           </div>
@@ -355,7 +415,9 @@ export default function TeacherCreatePage() {
           {/* Course Details */}
           <Card className="p-8">
             <h2 className="text-xl font-bold text-white mb-6 border-b border-neutral-800 pb-3 flex items-center">
-              <span className="w-6 h-6 rounded-full bg-indigo-900/50 text-indigo-400 flex items-center justify-center text-xs mr-3">1</span>
+              <span className="w-6 h-6 rounded-full bg-indigo-900/50 text-indigo-400 flex items-center justify-center text-xs mr-3">
+                1
+              </span>
               Course Metadata
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -398,7 +460,9 @@ export default function TeacherCreatePage() {
                   onChange={(e) => setThumbnailUrl(e.target.value)}
                   placeholder="https://example.com/image.jpg"
                 />
-                <p className="text-xs text-neutral-500 mt-1">Recommended: 800x400px image</p>
+                <p className="text-xs text-neutral-500 mt-1">
+                  Recommended: 800x400px image
+                </p>
               </div>
             </div>
           </Card>
@@ -407,10 +471,17 @@ export default function TeacherCreatePage() {
           <div>
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-white flex items-center">
-                <span className="w-6 h-6 rounded-full bg-indigo-900/50 text-indigo-400 flex items-center justify-center text-xs mr-3">2</span>
+                <span className="w-6 h-6 rounded-full bg-indigo-900/50 text-indigo-400 flex items-center justify-center text-xs mr-3">
+                  2
+                </span>
                 Course Modules ({lessons.length})
               </h2>
-              <Button variant="outline" type="button" onClick={addLesson} className="flex items-center text-sm py-2 px-4">
+              <Button
+                variant="outline"
+                type="button"
+                onClick={addLesson}
+                className="flex items-center text-sm py-2 px-4"
+              >
                 <PlusIcon className="w-4 h-4 mr-2" /> Add New Module
               </Button>
             </div>
@@ -418,12 +489,16 @@ export default function TeacherCreatePage() {
             <div className="space-y-6">
               {lessons.length === 0 && (
                 <div className="text-center py-16 bg-neutral-900/50 rounded-2xl border border-neutral-800 border-dashed text-neutral-500">
-                  No modules added yet. Click "Add New Module" to structure your course.
+                  No modules added yet. Click &quot;Add New Module&quot; to
+                  structure your course.
                 </div>
               )}
 
               {lessons.map((lesson, idx) => (
-                <Card key={idx} className="p-8 border-l-4 border-l-indigo-500 bg-neutral-900 overflow-visible relative">
+                <Card
+                  key={idx}
+                  className="p-8 border-l-4 border-l-indigo-500 bg-neutral-900 overflow-visible relative"
+                >
                   <div className="absolute top-0 right-0 p-4 flex items-center space-x-1">
                     <button
                       type="button"
@@ -454,14 +529,18 @@ export default function TeacherCreatePage() {
                     </button>
                   </div>
 
-                  <h3 className="font-bold text-indigo-400 mb-6 text-sm uppercase tracking-wider">Module {idx + 1}</h3>
+                  <h3 className="font-bold text-indigo-400 mb-6 text-sm uppercase tracking-wider">
+                    Module {idx + 1}
+                  </h3>
 
                   <div className="grid grid-cols-1 gap-6 mb-6 pr-12">
                     <div>
                       <Label>Module Title *</Label>
                       <Input
                         value={lesson.title}
-                        onChange={(e) => updateLesson(idx, 'title', e.target.value)}
+                        onChange={(e) =>
+                          updateLesson(idx, "title", e.target.value)
+                        }
                         placeholder="Enter lesson title"
                         required
                       />
@@ -472,7 +551,9 @@ export default function TeacherCreatePage() {
                     <Label>Lesson Content / Description *</Label>
                     <Textarea
                       value={lesson.description}
-                      onChange={(e) => updateLesson(idx, 'description', e.target.value)}
+                      onChange={(e) =>
+                        updateLesson(idx, "description", e.target.value)
+                      }
                       rows={6}
                       placeholder="Write your comprehensive lesson content here..."
                       className="font-mono text-sm text-neutral-300"
@@ -486,7 +567,9 @@ export default function TeacherCreatePage() {
                       <Input
                         type="url"
                         value={lesson.videoUrl}
-                        onChange={(e) => updateLesson(idx, 'videoUrl', e.target.value)}
+                        onChange={(e) =>
+                          updateLesson(idx, "videoUrl", e.target.value)
+                        }
                         placeholder="https://..."
                       />
                     </div>
@@ -499,12 +582,16 @@ export default function TeacherCreatePage() {
                           step="0.01"
                           min="0"
                           value={lesson.paybackAmount}
-                          onChange={(e) => updateLesson(idx, 'paybackAmount', e.target.value)}
+                          onChange={(e) =>
+                            updateLesson(idx, "paybackAmount", e.target.value)
+                          }
                           placeholder="0.5"
                           className="pr-12"
                         />
                         <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                          <span className="text-neutral-500 text-sm font-medium">PAS</span>
+                          <span className="text-neutral-500 text-sm font-medium">
+                            PAS
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -516,19 +603,30 @@ export default function TeacherCreatePage() {
                       <h4 className="text-sm font-bold text-neutral-300 uppercase tracking-wider">
                         Quiz Questions ({lesson.quizzes.length})
                       </h4>
-                      <Button
-                        variant="outline"
-                        type="button"
-                        onClick={() => addQuiz(idx)}
-                        className="flex items-center text-xs py-1.5 px-3"
-                      >
-                        <PlusIcon className="w-3 h-3 mr-1.5" /> Add Question
-                      </Button>
+                      <div className="flex gap-x-4">
+                        <Button
+                          variant="outline"
+                          type="button"
+                          className="flex items-center text-xs py-1.5 px-3"
+                          onClick={() => handleGenQuiz(lesson.id!)}
+                        >
+                          <BotIcon /> Generate Questions
+                        </Button>
+                        <Button
+                          variant="outline"
+                          type="button"
+                          onClick={() => addQuiz(idx)}
+                          className="flex items-center text-xs py-1.5 px-3"
+                        >
+                          <PlusIcon className="w-3 h-3 mr-1.5" /> Add Question
+                        </Button>
+                      </div>
                     </div>
 
                     {lesson.quizzes.length === 0 && (
                       <p className="text-neutral-600 text-sm italic">
-                        No quiz questions yet. Add questions to test student understanding.
+                        No quiz questions yet. Add questions to test student
+                        understanding.
                       </p>
                     )}
 
@@ -556,7 +654,14 @@ export default function TeacherCreatePage() {
                             <Label>Question *</Label>
                             <Input
                               value={quiz.question}
-                              onChange={(e) => updateQuiz(idx, qIdx, 'question', e.target.value)}
+                              onChange={(e) =>
+                                updateQuiz(
+                                  idx,
+                                  qIdx,
+                                  "question",
+                                  e.target.value,
+                                )
+                              }
                               placeholder="Enter quiz question"
                             />
                           </div>
@@ -566,7 +671,14 @@ export default function TeacherCreatePage() {
                               <Label>Option A *</Label>
                               <Input
                                 value={quiz.optionA}
-                                onChange={(e) => updateQuiz(idx, qIdx, 'optionA', e.target.value)}
+                                onChange={(e) =>
+                                  updateQuiz(
+                                    idx,
+                                    qIdx,
+                                    "optionA",
+                                    e.target.value,
+                                  )
+                                }
                                 placeholder="Option A"
                               />
                             </div>
@@ -574,7 +686,14 @@ export default function TeacherCreatePage() {
                               <Label>Option B *</Label>
                               <Input
                                 value={quiz.optionB}
-                                onChange={(e) => updateQuiz(idx, qIdx, 'optionB', e.target.value)}
+                                onChange={(e) =>
+                                  updateQuiz(
+                                    idx,
+                                    qIdx,
+                                    "optionB",
+                                    e.target.value,
+                                  )
+                                }
                                 placeholder="Option B"
                               />
                             </div>
@@ -582,7 +701,14 @@ export default function TeacherCreatePage() {
                               <Label>Option C *</Label>
                               <Input
                                 value={quiz.optionC}
-                                onChange={(e) => updateQuiz(idx, qIdx, 'optionC', e.target.value)}
+                                onChange={(e) =>
+                                  updateQuiz(
+                                    idx,
+                                    qIdx,
+                                    "optionC",
+                                    e.target.value,
+                                  )
+                                }
                                 placeholder="Option C"
                               />
                             </div>
@@ -590,7 +716,14 @@ export default function TeacherCreatePage() {
                               <Label>Option D *</Label>
                               <Input
                                 value={quiz.optionD}
-                                onChange={(e) => updateQuiz(idx, qIdx, 'optionD', e.target.value)}
+                                onChange={(e) =>
+                                  updateQuiz(
+                                    idx,
+                                    qIdx,
+                                    "optionD",
+                                    e.target.value,
+                                  )
+                                }
                                 placeholder="Option D"
                               />
                             </div>
@@ -600,19 +733,26 @@ export default function TeacherCreatePage() {
                             <Label>Correct Answer *</Label>
                             <div className="flex space-x-3 mt-1">
                               {[
-                                { value: 1, label: 'A' },
-                                { value: 2, label: 'B' },
-                                { value: 3, label: 'C' },
-                                { value: 4, label: 'D' },
+                                { value: 1, label: "A" },
+                                { value: 2, label: "B" },
+                                { value: 3, label: "C" },
+                                { value: 4, label: "D" },
                               ].map((opt) => (
                                 <button
                                   key={opt.value}
                                   type="button"
-                                  onClick={() => updateQuiz(idx, qIdx, 'correctOption', opt.value)}
+                                  onClick={() =>
+                                    updateQuiz(
+                                      idx,
+                                      qIdx,
+                                      "correctOption",
+                                      opt.value,
+                                    )
+                                  }
                                   className={`w-10 h-10 rounded-lg font-bold text-sm transition-all ${
                                     quiz.correctOption === opt.value
-                                      ? 'bg-green-600 text-white ring-2 ring-green-400'
-                                      : 'bg-neutral-700 text-neutral-400 hover:bg-neutral-600'
+                                      ? "bg-green-600 text-white ring-2 ring-green-400"
+                                      : "bg-neutral-700 text-neutral-400 hover:bg-neutral-600"
                                   }`}
                                 >
                                   {opt.label}

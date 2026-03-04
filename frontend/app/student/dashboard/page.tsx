@@ -166,7 +166,7 @@ export default function StudentDashboard() {
 					</div>
 				) : enrolledCourses.length === 0 ? (
 					<div className="text-center py-24 bg-neutral-900/50 rounded-2xl border border-neutral-800 border-dashed">
-						<h3 className="text-xl font-bold text-white mb-2">Your journey hasn't started yet.</h3>
+						<h3 className="text-xl font-bold text-white mb-2">Your journey hasn&apos;t started yet.</h3>
 						<p className="text-neutral-400 mb-6">Explore the course marketplace to find your next skill.</p>
 						<Button 
 							onClick={() => router.push('/student/course')}

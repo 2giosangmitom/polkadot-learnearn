@@ -171,7 +171,7 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
         {/* What You'll Learn */}
         <Card className="border border-neutral-800 bg-neutral-900/50">
           <div className="p-6">
-            <h2 className="text-2xl font-bold text-white mb-4">What You'll Learn</h2>
+            <h2 className="text-2xl font-bold text-white mb-4">What You&apos;ll Learn</h2>
             <div className="space-y-3 text-neutral-300">
               <div className="flex items-start">
                 <div className="w-6 h-6 rounded-full bg-indigo-500/20 flex items-center justify-center mt-0.5 mr-3 flex-shrink-0">
