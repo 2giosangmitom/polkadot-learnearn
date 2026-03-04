@@ -71,6 +71,9 @@ export default function TeacherCreatePage() {
   const [lessons, setLessons] = useState<LessonForm[]>([EMPTY_LESSON]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [generatingQuizFor, setGeneratingQuizFor] = useState<number | null>(
+    null,
+  );
   const [role, setRole] = useState<"unknown" | "teacher" | "student">(
     "unknown",
   );
@@ -330,8 +333,67 @@ export default function TeacherCreatePage() {
     }
   };
 
-  const handleGenQuiz = async (lessonId: string) => {
-    await generateQuiz(lessonId);
+  const handleGenQuiz = async (lessonIndex: number) => {
+    const lesson = lessons[lessonIndex];
+
+    if (!lesson.id) {
+      showModal(
+        "Please save the course first before generating quizzes. The lesson must exist in the database so the AI can read its content.",
+        {
+          type: "warning",
+          title: "Save Required",
+        },
+      );
+      return;
+    }
+
+    setGeneratingQuizFor(lessonIndex);
+    try {
+      const result = await generateQuiz(lesson.id);
+
+      if (!result || result.length === 0) {
+        showModal("The AI was unable to generate quiz questions for this lesson. Try adding more content or a video URL.", {
+          type: "warning",
+          title: "No Questions Generated",
+        });
+        return;
+      }
+
+      const newQuizzes: QuizForm[] = result.map((q) => ({
+        question: q.question,
+        optionA: q.option_a,
+        optionB: q.option_b,
+        optionC: q.option_c,
+        optionD: q.option_d,
+        correctOption: q.correct_option,
+      }));
+
+      const updatedLessons = [...lessons];
+      updatedLessons[lessonIndex] = {
+        ...updatedLessons[lessonIndex],
+        quizzes: [...updatedLessons[lessonIndex].quizzes, ...newQuizzes],
+      };
+      setLessons(updatedLessons);
+
+      showModal(
+        `Successfully generated ${newQuizzes.length} quiz question${newQuizzes.length > 1 ? "s" : ""} and appended to the lesson.`,
+        {
+          type: "success",
+          title: "Quizzes Generated",
+        },
+      );
+    } catch (error) {
+      console.error("Error generating quizzes:", error);
+      showModal(
+        (error as Error).message || "Failed to generate quiz questions. Please try again.",
+        {
+          type: "error",
+          title: "Generation Failed",
+        },
+      );
+    } finally {
+      setGeneratingQuizFor(null);
+    }
   };
 
   const handleCancel = () => {
@@ -608,9 +670,20 @@ export default function TeacherCreatePage() {
                           variant="outline"
                           type="button"
                           className="flex items-center text-xs py-1.5 px-3"
-                          onClick={() => handleGenQuiz(lesson.id!)}
+                          onClick={() => handleGenQuiz(idx)}
+                          disabled={generatingQuizFor !== null}
                         >
-                          <BotIcon /> Generate Questions
+                          {generatingQuizFor === idx ? (
+                            <>
+                              <span className="inline-block animate-spin rounded-full h-3 w-3 border-b-2 border-current mr-1.5" />
+                              Generating...
+                            </>
+                          ) : (
+                            <>
+                              <BotIcon className="w-3.5 h-3.5 mr-1.5" />{" "}
+                              Generate Questions
+                            </>
+                          )}
                         </Button>
                         <Button
                           variant="outline"
