@@ -1,0 +1,15 @@
+[project]
+name = "api"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "base58>=2.1.1",
+    "fastapi[standard]>=0.135.1",
+    "google-genai>=1.66.0",
+    "psycopg[binary]>=3.2.0",
+    "pydantic-settings>=2.0.0",
+    "pypolkadot>=0.2.5",
+    "sqlmodel>=0.0.37",
+]
