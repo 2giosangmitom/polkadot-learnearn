@@ -1,0 +1,13 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    networks:
+      - bookwise-network
+
+networks:
+  bookwise-network:
+
+volumes:
+  postgres-data:
