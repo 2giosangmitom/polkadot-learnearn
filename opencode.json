@@ -1,0 +1,13 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "shadcn": {
+      "type": "local",
+      "command": ["npx", "shadcn@latest", "mcp"]
+    },
+    "magicui": {
+      "type": "local",
+      "command": ["npx", "-y", "@magicuidesign/mcp@latest"]
+    }
+  }
+}
