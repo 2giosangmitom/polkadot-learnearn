@@ -142,6 +142,42 @@ class QuizResponse(BaseModel):
     updated_at: datetime = Field(description="Last update timestamp.")
 
 
+class GenerateQuizRequest(BaseModel):
+    """Schema for requesting AI-generated quiz questions for a lesson."""
+
+    num_questions: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description="Number of quiz questions to generate (1-10).",
+    )
+
+
+class GeneratedQuizItem(BaseModel):
+    """Schema describing a single AI-generated quiz question.
+
+    Used as the output schema for the AI provider so the model returns
+    structured JSON that can be directly validated.
+    """
+
+    question: str = Field(description="The quiz question text.")
+    option_a: str = Field(description="Answer option A.")
+    option_b: str = Field(description="Answer option B.")
+    option_c: str = Field(description="Answer option C.")
+    option_d: str = Field(description="Answer option D.")
+    correct_option: int = Field(
+        ge=1, le=4, description="Correct option number (1=A, 2=B, 3=C, 4=D)."
+    )
+
+
+class GeneratedQuizList(BaseModel):
+    """Wrapper list returned by the AI provider."""
+
+    items: list[GeneratedQuizItem] = Field(
+        description="List of generated quiz questions."
+    )
+
+
 # ---------------------------------------------------------------------------
 # QuizAnswer
 # ---------------------------------------------------------------------------

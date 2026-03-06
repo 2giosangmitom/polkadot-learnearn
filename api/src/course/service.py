@@ -4,14 +4,21 @@ from pydantic import UUID4
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from src.ai.factory import get_ai_provider
+from src.ai.subtitles import fetch_subtitles
 from src.config import settings
 from src.course.blockchain import get_block_hash_from_tx, verify_payment
-from src.course.exceptions import PaymentVerificationFailed, TransactionNotFound
+from src.course.exceptions import (
+    PaymentVerificationFailed,
+    QuizGenerationFailed,
+    TransactionNotFound,
+)
 from src.course.models import Course, CoursePurchase, Lesson, Quiz, QuizAnswer
 from src.course.schemas import (
     CourseCreate,
     CoursePurchaseCreate,
     CourseUpdate,
+    GeneratedQuizList,
     LessonCreate,
     LessonUpdate,
     QuizAnswerCreate,
@@ -166,6 +173,90 @@ async def update_quiz(session: AsyncSession, quiz: Quiz, data: QuizUpdate) -> Qu
 async def delete_quiz(session: AsyncSession, quiz: Quiz) -> None:
     await session.delete(quiz)
     await session.commit()
+
+
+async def gen_quiz(
+    session: AsyncSession, lesson: Lesson, num_questions: int = 3
+) -> list[Quiz]:
+    """Use AI to generate quiz questions from lesson content.
+
+    1. Optionally fetch YouTube subtitles from the lesson video URL.
+    2. Build a system prompt and user prompt with lesson metadata + transcript.
+    3. Call the configured AI provider to generate structured quiz data.
+    4. Persist each generated quiz to the database.
+
+    Raises:
+        QuizGenerationFailed: If the AI provider fails.
+    """
+    count = max(1, min(num_questions, 10))
+
+    # --- Fetch subtitles (best effort) ---
+    subtitle: str | None = None
+    if lesson.video_url:
+        subtitle = await fetch_subtitles(lesson.video_url)
+
+    # --- Build prompts (mirrors the TypeScript implementation) ---
+    system_prompt = (
+        "You are an expert educational quiz designer for an online learning platform. "
+        "Your task is to create high-quality multiple-choice questions that assess "
+        "student comprehension of a lesson.\n\n"
+        "Guidelines:\n"
+        f"- Generate exactly {count} question{'s' if count > 1 else ''}.\n"
+        "- Each question must have exactly 4 options (A, B, C, D) with exactly one correct answer.\n"
+        "- Questions should test understanding, not just rote memorization — "
+        "include application and analysis-level questions when possible.\n"
+        "- Distribute the correct answer across options A–D roughly evenly; "
+        "do NOT always make the same option correct.\n"
+        "- All incorrect options (distractors) must be plausible — "
+        "avoid obviously wrong or joke answers.\n"
+        "- Keep question and option text concise but unambiguous.\n"
+        "- Cover different parts of the lesson content; avoid asking the same concept twice.\n"
+        "- If video subtitles are provided, use them as the primary source of content; "
+        "the title and description provide additional context."
+    )
+
+    prompt = f"## Lesson Information\n\n**Title:** {lesson.title}\n"
+    if lesson.description:
+        prompt += f"\n**Description:**\n{lesson.description}\n"
+    if subtitle:
+        prompt += f"\n**Video Transcript:**\n{subtitle}\n"
+    prompt += (
+        f"\nGenerate {count} quiz question{'s' if count > 1 else ''} "
+        "based on the lesson content above."
+    )
+
+    # --- Call AI provider ---
+    try:
+        provider = get_ai_provider()
+        result = await provider.generate_structured(
+            system=system_prompt,
+            prompt=prompt,
+            output_schema=GeneratedQuizList,
+        )
+    except Exception as exc:
+        raise QuizGenerationFailed(detail=str(exc)) from exc
+
+    # --- Persist generated quizzes ---
+    quizzes: list[Quiz] = []
+    for item in result.items:
+        quiz = Quiz(
+            id=uuid.uuid4(),
+            question=item.question,
+            option_a=item.option_a,
+            option_b=item.option_b,
+            option_c=item.option_c,
+            option_d=item.option_d,
+            correct_option=item.correct_option,
+            lesson_id=lesson.id,
+        )
+        session.add(quiz)
+        quizzes.append(quiz)
+
+    await session.commit()
+    for quiz in quizzes:
+        await session.refresh(quiz)
+
+    return quizzes
 
 
 # ---------------------------------------------------------------------------

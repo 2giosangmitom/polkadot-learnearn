@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends, Query, status
-from pydantic import UUID4
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from src.auth import service
-from src.auth.dependencies import valid_user_id
+from src.auth.dependencies import valid_user_id, valid_wallet_address
 from src.auth.exceptions import WalletAddressAlreadyExists
 from src.auth.models import User
 from src.auth.schemas import UserCreate, UserResponse, UserUpdate
@@ -34,17 +33,17 @@ async def list_users(
 
 
 @router.get(
-    "/{user_id}",
+    "/wallet/{wallet_address}",
     response_model=UserResponse,
-    summary="Get a user by ID",
-    description="Retrieve a single user by their unique identifier.",
+    summary="Get a user by wallet address",
+    description="Retrieve a single user by their blockchain wallet address.",
     responses={
         status.HTTP_200_OK: {"description": "User found and returned."},
         status.HTTP_404_NOT_FOUND: {"description": "User not found."},
     },
 )
-async def get_user(
-    user: User = Depends(valid_user_id),
+async def get_user_by_wallet(
+    user: User = Depends(valid_wallet_address),
 ) -> User:
     return user
 

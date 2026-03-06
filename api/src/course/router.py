@@ -17,6 +17,7 @@ from src.course.schemas import (
     CoursePurchaseResponse,
     CourseResponse,
     CourseUpdate,
+    GenerateQuizRequest,
     LessonCreate,
     LessonResponse,
     LessonUpdate,
@@ -274,6 +275,34 @@ async def create_quiz(
     session: AsyncSession = Depends(get_session),
 ) -> Quiz:
     return await service.create_quiz(session, lesson.id, data)
+
+
+@quiz_router.post(
+    "/generate",
+    response_model=list[QuizResponse],
+    status_code=status.HTTP_201_CREATED,
+    summary="Generate quiz questions with AI",
+    description=(
+        "Use AI to automatically generate multiple-choice quiz questions for a lesson. "
+        "The AI uses the lesson title, description, and YouTube video subtitles "
+        "(when available) to create high-quality questions.\n\n"
+        "Generated quizzes are persisted to the database and returned. "
+        "Returns **502 Bad Gateway** if the AI provider fails."
+    ),
+    responses={
+        status.HTTP_201_CREATED: {
+            "description": "Quiz questions generated and saved successfully.",
+        },
+        status.HTTP_404_NOT_FOUND: {"description": "Lesson not found."},
+        status.HTTP_502_BAD_GATEWAY: {"description": "AI generation failed."},
+    },
+)
+async def generate_quizzes(
+    lesson: Lesson = Depends(valid_lesson_id),
+    session: AsyncSession = Depends(get_session),
+    body: GenerateQuizRequest = GenerateQuizRequest(),
+) -> list[Quiz]:
+    return await service.gen_quiz(session, lesson, num_questions=body.num_questions)
 
 
 # Standalone quiz endpoints

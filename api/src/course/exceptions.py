@@ -62,3 +62,13 @@ class PaymentVerificationFailed(HTTPException):
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail=detail,
         )
+
+
+class QuizGenerationFailed(HTTPException):
+    """AI quiz generation failed."""
+
+    def __init__(self, detail: str = "Quiz generation failed.") -> None:
+        super().__init__(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=detail,
+        )

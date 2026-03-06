@@ -16,3 +16,13 @@ async def valid_user_id(
     if not user:
         raise UserNotFound()
     return user
+
+
+async def valid_wallet_address(
+    wallet_address: str, session: AsyncSession = Depends(get_session)
+) -> User:
+    """Validate that a user with the given wallet address exists and return it."""
+    user = await service.get_user_by_wallet(session, wallet_address)
+    if not user:
+        raise UserNotFound()
+    return user

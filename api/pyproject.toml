@@ -8,8 +8,10 @@ dependencies = [
     "base58>=2.1.1",
     "fastapi[standard]>=0.135.1",
     "google-genai>=1.66.0",
+    "httpx>=0.28.1",
     "psycopg[binary]>=3.2.0",
     "pydantic-settings>=2.0.0",
     "pypolkadot>=0.2.5",
     "sqlmodel>=0.0.37",
+    "yt-dlp>=2026.3.3",
 ]
