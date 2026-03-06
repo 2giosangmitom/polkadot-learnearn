@@ -29,7 +29,7 @@ export function HeroSection() {
       )}
 
       {/* Glowing orb behind text */}
-      <div className="pointer-events-none absolute top-1/2 left-1/2 -z-10 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-[120px]" />
+      <div className="pointer-events-none absolute top-1/2 left-1/2 -z-10 h-125 w-125 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-[120px]" />
 
       <div className="mx-auto max-w-4xl text-center">
         <div className="mb-6 inline-flex items-center rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-sm text-primary">
@@ -82,17 +82,26 @@ export function HeroSection() {
 
       {/* Stats bar */}
       <div className="relative mt-20 w-full max-w-3xl rounded-2xl border border-border/50 bg-card/50 p-6 backdrop-blur-sm">
-        <BorderBeam size={200} duration={8} colorFrom="#e6007a" colorTo="#552bbf" />
+        <BorderBeam
+          size={200}
+          duration={8}
+          colorFrom="#e6007a"
+          colorTo="#552bbf"
+        />
         <div className="grid grid-cols-3 gap-3 text-center sm:gap-6">
           <div>
             <div className="text-2xl font-bold text-primary sm:text-3xl">
               100%
             </div>
-            <div className="text-sm text-muted-foreground">On-Chain Verified</div>
+            <div className="text-sm text-muted-foreground">
+              On-Chain Verified
+            </div>
           </div>
           <div>
             <div className="text-2xl font-bold sm:text-3xl">AI</div>
-            <div className="text-sm text-muted-foreground">Generated Quizzes</div>
+            <div className="text-sm text-muted-foreground">
+              Generated Quizzes
+            </div>
           </div>
           <div>
             <div className="text-2xl font-bold text-primary sm:text-3xl">
