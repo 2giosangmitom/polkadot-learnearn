@@ -1,10 +1,12 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import SQLModel
 
 # Import database first to set naming conventions before models register
 from src.database import engine  # noqa: F401
+from src.config import settings
 
 # Import all models so SQLModel metadata is fully populated
 from src.auth.models import User  # noqa: F401
@@ -45,6 +47,16 @@ app = FastAPI(
     ),
     version="0.1.0",
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        origin.strip() for origin in settings.CORS_ORIGINS.split(",") if origin.strip()
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Auth domain
