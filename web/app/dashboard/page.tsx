@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   coursesApi,
   lessonsApi,
   quizzesApi,
   type Course,
-  type Lesson,
+  type LessonUpsert,
+  type CourseCreate,
+  type CourseUpdate,
+  type QuizCreate,
+  type QuizUpdate,
 } from "@/lib/api";
 import { useUserStore } from "@/lib/user-store";
 import { BlurFade } from "@/components/ui/blur-fade";
@@ -19,7 +23,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Card,
   CardContent,
@@ -27,21 +30,32 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  ArrowLeft,
+  ArrowDown,
+  ArrowUp,
   BookOpen,
+  ChevronDown,
+  ChevronRight,
+  CircleHelp,
   Coins,
   GraduationCap,
   Loader2,
   Plus,
+  Save,
   Sparkles,
   Trash2,
   Video,
@@ -49,41 +63,108 @@ import {
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
 
+// ---------------------------------------------------------------------------
+// Types for the editor form state
+// ---------------------------------------------------------------------------
+
+interface LessonFormItem {
+  /** Existing lesson ID, or null for newly added lessons */
+  id: string | null;
+  title: string;
+  description: string;
+  video_url: string;
+  payback_amount: number;
+  /** Client-side key for React list rendering */
+  _key: string;
+}
+
+interface QuizFormItem {
+  /** Existing quiz ID, or null for newly created quizzes */
+  id: string | null;
+  question: string;
+  option_a: string;
+  option_b: string;
+  option_c: string;
+  option_d: string;
+  correct_option: number;
+  quiz_index: number;
+  /** Client-side key for React list rendering */
+  _key: string;
+}
+
+let nextKey = 0;
+function genKey(prefix = "item") {
+  return `${prefix}-${++nextKey}-${Date.now()}`;
+}
+
+function emptyLesson(): LessonFormItem {
+  return {
+    id: null,
+    title: "",
+    description: "",
+    video_url: "",
+    payback_amount: 0,
+    _key: genKey("lesson"),
+  };
+}
+
+function emptyQuiz(): QuizFormItem {
+  return {
+    id: null,
+    question: "",
+    option_a: "",
+    option_b: "",
+    option_c: "",
+    option_d: "",
+    correct_option: 1,
+    quiz_index: 0,
+    _key: genKey("quiz"),
+  };
+}
+
+const OPTION_LABELS: Record<number, string> = {
+  1: "A",
+  2: "B",
+  3: "C",
+  4: "D",
+};
+
+// ===========================================================================
+// Main component
+// ===========================================================================
+
 export default function DashboardPage() {
   const router = useRouter();
   const user = useUserStore((s) => s.user);
   const { theme } = useTheme();
 
+  // --- View state: "list" or "editor" ---
+  const [view, setView] = useState<"list" | "editor">("list");
+
+  // --- Course list state ---
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Create course form
-  const [showCreateCourse, setShowCreateCourse] = useState(false);
-  const [courseForm, setCourseForm] = useState({
-    title: "",
-    description: "",
-    price: 0,
-  });
-  const [creating, setCreating] = useState(false);
+  // --- Editor state ---
+  const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
+  const [courseTitle, setCourseTitle] = useState("");
+  const [courseDescription, setCourseDescription] = useState("");
+  const [coursePrice, setCoursePrice] = useState(0);
+  const [lessonItems, setLessonItems] = useState<LessonFormItem[]>([]);
+  const [saving, setSaving] = useState(false);
 
-  // Selected course for lesson management
-  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-  const [lessons, setLessons] = useState<Lesson[]>([]);
-  const [lessonsLoading, setLessonsLoading] = useState(false);
+  // --- Quiz state: keyed by lesson _key ---
+  const [quizMap, setQuizMap] = useState<Record<string, QuizFormItem[]>>({});
+  const [openQuizSections, setOpenQuizSections] = useState<Set<string>>(
+    new Set()
+  );
+  const [savingQuiz, setSavingQuiz] = useState<string | null>(null);
+  const [deletingQuiz, setDeletingQuiz] = useState<string | null>(null);
 
-  // Create lesson form
-  const [showCreateLesson, setShowCreateLesson] = useState(false);
-  const [lessonForm, setLessonForm] = useState({
-    title: "",
-    description: "",
-    video_url: "",
-    payback_amount: 0,
-  });
-  const [creatingLesson, setCreatingLesson] = useState(false);
-
-  // AI quiz gen
+  // AI quiz generation
   const [generatingQuiz, setGeneratingQuiz] = useState<string | null>(null);
 
+  // --- Auth guard ---
   useEffect(() => {
     if (!user) {
       router.push("/onboarding");
@@ -94,9 +175,11 @@ export default function DashboardPage() {
       return;
     }
     loadCourses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, router]);
 
-  async function loadCourses() {
+  // --- Data fetching ---
+  const loadCourses = useCallback(async () => {
     try {
       const all = await coursesApi.list();
       setCourses(all.filter((c) => c.author_id === user?.id));
@@ -105,83 +188,327 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
+  }, [user?.id]);
+
+  // --- Navigation helpers ---
+  function openCreateEditor() {
+    setEditingCourseId(null);
+    setCourseTitle("");
+    setCourseDescription("");
+    setCoursePrice(0);
+    setLessonItems([]);
+    setQuizMap({});
+    setOpenQuizSections(new Set());
+    setView("editor");
   }
 
-  async function handleCreateCourse() {
-    if (!user) return;
-    setCreating(true);
+  async function openEditEditor(course: Course) {
+    setEditingCourseId(course.id);
+    setCourseTitle(course.title);
+    setCourseDescription(course.description);
+    setCoursePrice(course.price);
+    setQuizMap({});
+    setOpenQuizSections(new Set());
+    setView("editor");
+
+    // Load existing lessons
     try {
-      const course = await coursesApi.create({
-        ...courseForm,
-        author_id: user.id,
-      });
-      setCourses((prev) => [course, ...prev]);
-      setShowCreateCourse(false);
-      setCourseForm({ title: "", description: "", price: 0 });
-      toast.success("Course created!");
+      const lessons = await lessonsApi.listByCourse(course.id);
+      const sortedLessons = lessons.sort(
+        (a, b) => a.lesson_index - b.lesson_index
+      );
+      const items: LessonFormItem[] = sortedLessons.map((l) => ({
+        id: l.id,
+        title: l.title,
+        description: l.description,
+        video_url: l.video_url,
+        payback_amount: l.payback_amount,
+        _key: genKey("lesson"),
+      }));
+      setLessonItems(items);
+
+      // Load quizzes for each saved lesson
+      const newQuizMap: Record<string, QuizFormItem[]> = {};
+      for (const item of items) {
+        if (item.id) {
+          try {
+            const quizzes = await quizzesApi.listByLesson(item.id);
+            const sortedQuizzes = quizzes.sort(
+              (a, b) => a.quiz_index - b.quiz_index
+            );
+            newQuizMap[item._key] = sortedQuizzes.map((q) => ({
+              id: q.id,
+              question: q.question,
+              option_a: q.option_a,
+              option_b: q.option_b,
+              option_c: q.option_c,
+              option_d: q.option_d,
+              correct_option: q.correct_option,
+              quiz_index: q.quiz_index,
+              _key: genKey("quiz"),
+            }));
+          } catch {
+            newQuizMap[item._key] = [];
+          }
+        }
+      }
+      setQuizMap(newQuizMap);
     } catch {
-      toast.error("Failed to create course.");
-    } finally {
-      setCreating(false);
+      toast.error("Failed to load lessons.");
+      setLessonItems([]);
     }
   }
 
+  function closeEditor() {
+    setView("list");
+    setEditingCourseId(null);
+    setQuizMap({});
+    setOpenQuizSections(new Set());
+  }
+
+  // --- Lesson list manipulation ---
+  function addLesson() {
+    setLessonItems((prev) => [...prev, emptyLesson()]);
+  }
+
+  function removeLesson(key: string) {
+    setLessonItems((prev) => prev.filter((l) => l._key !== key));
+    // Also remove quizzes for this lesson
+    setQuizMap((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }
+
+  function updateLesson(
+    key: string,
+    field: keyof LessonFormItem,
+    value: string | number
+  ) {
+    setLessonItems((prev) =>
+      prev.map((l) => (l._key === key ? { ...l, [field]: value } : l))
+    );
+  }
+
+  function moveLessonUp(index: number) {
+    if (index <= 0) return;
+    setLessonItems((prev) => {
+      const next = [...prev];
+      [next[index - 1], next[index]] = [next[index], next[index - 1]];
+      return next;
+    });
+  }
+
+  function moveLessonDown(index: number) {
+    setLessonItems((prev) => {
+      if (index >= prev.length - 1) return prev;
+      const next = [...prev];
+      [next[index], next[index + 1]] = [next[index + 1], next[index]];
+      return next;
+    });
+  }
+
+  // --- Quiz manipulation ---
+  function toggleQuizSection(lessonKey: string) {
+    setOpenQuizSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(lessonKey)) next.delete(lessonKey);
+      else next.add(lessonKey);
+      return next;
+    });
+  }
+
+  function addQuiz(lessonKey: string) {
+    setQuizMap((prev) => ({
+      ...prev,
+      [lessonKey]: [...(prev[lessonKey] ?? []), emptyQuiz()],
+    }));
+  }
+
+  function removeQuizFromState(lessonKey: string, quizKey: string) {
+    setQuizMap((prev) => ({
+      ...prev,
+      [lessonKey]: (prev[lessonKey] ?? []).filter((q) => q._key !== quizKey),
+    }));
+  }
+
+  function updateQuizField(
+    lessonKey: string,
+    quizKey: string,
+    field: keyof QuizFormItem,
+    value: string | number
+  ) {
+    setQuizMap((prev) => ({
+      ...prev,
+      [lessonKey]: (prev[lessonKey] ?? []).map((q) =>
+        q._key === quizKey ? { ...q, [field]: value } : q
+      ),
+    }));
+  }
+
+  // --- Quiz save (individual) ---
+  async function handleSaveQuiz(lessonKey: string, quiz: QuizFormItem) {
+    const lesson = lessonItems.find((l) => l._key === lessonKey);
+    if (!lesson?.id) {
+      toast.error("Save the course first so the lesson has an ID.");
+      return;
+    }
+
+    // Determine quiz_index from position in the list
+    const lessonQuizzes = quizMap[lessonKey] ?? [];
+    const quizPosition = lessonQuizzes.findIndex((q) => q._key === quiz._key);
+    const resolvedQuizIndex = quizPosition >= 0 ? quizPosition : quiz.quiz_index;
+
+    const payload: QuizCreate | QuizUpdate = {
+      question: quiz.question,
+      option_a: quiz.option_a,
+      option_b: quiz.option_b,
+      option_c: quiz.option_c,
+      option_d: quiz.option_d,
+      correct_option: quiz.correct_option,
+      quiz_index: resolvedQuizIndex,
+    };
+
+    setSavingQuiz(quiz._key);
+    try {
+      if (quiz.id) {
+        // Update existing
+        const updated = await quizzesApi.update(quiz.id, payload);
+        setQuizMap((prev) => ({
+          ...prev,
+          [lessonKey]: (prev[lessonKey] ?? []).map((q) =>
+            q._key === quiz._key ? { ...q, id: updated.id } : q
+          ),
+        }));
+        toast.success("Quiz question updated!");
+      } else {
+        // Create new
+        const created = await quizzesApi.create(lesson.id, payload);
+        setQuizMap((prev) => ({
+          ...prev,
+          [lessonKey]: (prev[lessonKey] ?? []).map((q) =>
+            q._key === quiz._key ? { ...q, id: created.id } : q
+          ),
+        }));
+        toast.success("Quiz question created!");
+      }
+    } catch {
+      toast.error("Failed to save quiz question.");
+    } finally {
+      setSavingQuiz(null);
+    }
+  }
+
+  // --- Quiz delete ---
+  async function handleDeleteQuiz(lessonKey: string, quiz: QuizFormItem) {
+    if (!quiz.id) {
+      // Not saved yet — just remove from state
+      removeQuizFromState(lessonKey, quiz._key);
+      return;
+    }
+
+    setDeletingQuiz(quiz._key);
+    try {
+      await quizzesApi.delete(quiz.id);
+      removeQuizFromState(lessonKey, quiz._key);
+      toast.success("Quiz question deleted.");
+    } catch {
+      toast.error("Failed to delete quiz question.");
+    } finally {
+      setDeletingQuiz(null);
+    }
+  }
+
+  // --- Save (create or update) ---
+  async function handleSave() {
+    if (!user) return;
+    if (!courseTitle.trim() || !courseDescription.trim()) {
+      toast.error("Course title and description are required.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const lessons: LessonUpsert[] = lessonItems.map((l, i) => ({
+        id: l.id,
+        title: l.title,
+        description: l.description,
+        video_url: l.video_url,
+        payback_amount: l.payback_amount,
+        lesson_index: i,
+      }));
+
+      if (editingCourseId) {
+        // Update existing course
+        const updateData: CourseUpdate = {
+          title: courseTitle.trim(),
+          description: courseDescription.trim(),
+          price: coursePrice,
+          lessons,
+        };
+        await coursesApi.update(editingCourseId, updateData);
+        toast.success("Course updated!");
+      } else {
+        // Create new course
+        const createData: CourseCreate = {
+          title: courseTitle.trim(),
+          description: courseDescription.trim(),
+          price: coursePrice,
+          author_id: user.id,
+          lessons,
+        };
+        await coursesApi.create(createData);
+        toast.success("Course created!");
+      }
+
+      // Route back to dashboard list
+      closeEditor();
+      await loadCourses();
+    } catch {
+      toast.error("Failed to save course.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // --- Delete course ---
   async function handleDeleteCourse(id: string) {
     try {
       await coursesApi.delete(id);
       setCourses((prev) => prev.filter((c) => c.id !== id));
-      if (selectedCourse?.id === id) {
-        setSelectedCourse(null);
-        setLessons([]);
-      }
       toast.success("Course deleted.");
     } catch {
       toast.error("Failed to delete course.");
     }
   }
 
-  async function selectCourse(course: Course) {
-    setSelectedCourse(course);
-    setLessonsLoading(true);
-    try {
-      setLessons(await lessonsApi.listByCourse(course.id));
-    } catch {
-      toast.error("Failed to load lessons.");
-    } finally {
-      setLessonsLoading(false);
-    }
-  }
-
-  async function handleCreateLesson() {
-    if (!selectedCourse) return;
-    setCreatingLesson(true);
-    try {
-      const lesson = await lessonsApi.create(selectedCourse.id, lessonForm);
-      setLessons((prev) => [...prev, lesson]);
-      setShowCreateLesson(false);
-      setLessonForm({ title: "", description: "", video_url: "", payback_amount: 0 });
-      toast.success("Lesson created!");
-    } catch {
-      toast.error("Failed to create lesson.");
-    } finally {
-      setCreatingLesson(false);
-    }
-  }
-
-  async function handleDeleteLesson(id: string) {
-    try {
-      await lessonsApi.delete(id);
-      setLessons((prev) => prev.filter((l) => l.id !== id));
-      toast.success("Lesson deleted.");
-    } catch {
-      toast.error("Failed to delete lesson.");
-    }
-  }
-
-  async function handleGenerateQuiz(lessonId: string) {
+  // --- AI Quiz generation (populates form state) ---
+  async function handleGenerateQuiz(lessonKey: string, lessonId: string) {
     setGeneratingQuiz(lessonId);
     try {
-      const generated = await quizzesApi.generate(lessonId, { num_questions: 3 });
+      const generated = await quizzesApi.generate(lessonId, {
+        num_questions: 3,
+      });
+      // Map generated quizzes into form items (they are already saved by the backend)
+      const existingCount = (quizMap[lessonKey] ?? []).length;
+      const newItems: QuizFormItem[] = generated.map((q, i) => ({
+        id: q.id,
+        question: q.question,
+        option_a: q.option_a,
+        option_b: q.option_b,
+        option_c: q.option_c,
+        option_d: q.option_d,
+        correct_option: q.correct_option,
+        quiz_index: q.quiz_index ?? existingCount + i,
+        _key: genKey("quiz"),
+      }));
+      setQuizMap((prev) => ({
+        ...prev,
+        [lessonKey]: [...(prev[lessonKey] ?? []), ...newItems],
+      }));
+      // Auto-open the quiz section
+      setOpenQuizSections((prev) => new Set(prev).add(lessonKey));
       toast.success(`Generated ${generated.length} quiz questions!`);
     } catch {
       toast.error("Failed to generate quizzes. AI may be unavailable.");
@@ -190,12 +517,397 @@ export default function DashboardPage() {
     }
   }
 
+  // --- Auth guard render ---
   if (!user || user.role !== "Teacher") return null;
 
+  // =========================================================================
+  // EDITOR VIEW
+  // =========================================================================
+  if (view === "editor") {
+    const isNew = !editingCourseId;
+    const canSave =
+      courseTitle.trim().length > 0 &&
+      courseDescription.trim().length > 0 &&
+      lessonItems.every(
+        (l) =>
+          l.title.trim().length > 0 &&
+          l.description.trim().length > 0 &&
+          l.video_url.trim().length > 0
+      );
+
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
+        {/* Header */}
+        <BlurFade delay={0.1}>
+          <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={closeEditor}
+                className="shrink-0"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight">
+                  {isNew ? "Create Course" : "Edit Course"}
+                </h1>
+                <p className="text-sm text-muted-foreground">
+                  {isNew
+                    ? "Set up your course and add lessons."
+                    : "Update your course details and lessons."}
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={handleSave}
+              disabled={!canSave || saving}
+              className="gap-2"
+            >
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              {saving ? "Saving..." : "Save Course"}
+            </Button>
+          </div>
+        </BlurFade>
+
+        {/* Course fields */}
+        <BlurFade delay={0.15}>
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BookOpen className="h-5 w-5 text-primary" />
+                Course Details
+              </CardTitle>
+              <CardDescription>
+                Basic information about your course.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="course-title">Title</Label>
+                <Input
+                  id="course-title"
+                  placeholder="Introduction to Polkadot"
+                  value={courseTitle}
+                  onChange={(e) => setCourseTitle(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="course-description">Description</Label>
+                <Textarea
+                  id="course-description"
+                  placeholder="A comprehensive course on..."
+                  value={courseDescription}
+                  onChange={(e) => setCourseDescription(e.target.value)}
+                  rows={3}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="course-price">Price (PAS)</Label>
+                <Input
+                  id="course-price"
+                  type="number"
+                  min={0}
+                  step={0.1}
+                  value={coursePrice}
+                  onChange={(e) =>
+                    setCoursePrice(parseFloat(e.target.value) || 0)
+                  }
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </BlurFade>
+
+        {/* Lessons section */}
+        <BlurFade delay={0.2}>
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold">Lessons</h2>
+              <p className="text-sm text-muted-foreground">
+                {lessonItems.length === 0
+                  ? "Add lessons to your course."
+                  : `${lessonItems.length} lesson${lessonItems.length !== 1 ? "s" : ""}`}
+              </p>
+            </div>
+            <Button variant="outline" className="gap-2" onClick={addLesson}>
+              <Plus className="h-4 w-4" />
+              Add Lesson
+            </Button>
+          </div>
+        </BlurFade>
+
+        {lessonItems.length === 0 ? (
+          <BlurFade delay={0.25}>
+            <Card>
+              <CardContent className="flex flex-col items-center py-12 text-center">
+                <Video className="mb-3 h-10 w-10 text-muted-foreground/50" />
+                <p className="text-sm text-muted-foreground">
+                  No lessons yet. Click &quot;Add Lesson&quot; to get started.
+                </p>
+              </CardContent>
+            </Card>
+          </BlurFade>
+        ) : (
+          <div className="space-y-4">
+            {lessonItems.map((lesson, index) => {
+              const lessonQuizzes = quizMap[lesson._key] ?? [];
+              const quizCount = lessonQuizzes.length;
+              const isQuizOpen = openQuizSections.has(lesson._key);
+
+              return (
+                <BlurFade key={lesson._key} delay={0.05 + index * 0.02}>
+                  <Card>
+                    <CardContent className="p-5">
+                      {/* Lesson header with index, reorder, and actions */}
+                      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant="secondary"
+                            className="bg-primary/10 text-primary"
+                          >
+                            Lesson {index + 1}
+                          </Badge>
+                          {lesson.id && (
+                            <Badge variant="outline" className="text-xs">
+                              Saved
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {/* Reorder buttons */}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            disabled={index === 0}
+                            onClick={() => moveLessonUp(index)}
+                          >
+                            <ArrowUp className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            disabled={index === lessonItems.length - 1}
+                            onClick={() => moveLessonDown(index)}
+                          >
+                            <ArrowDown className="h-4 w-4" />
+                          </Button>
+                          <Separator
+                            orientation="vertical"
+                            className="mx-1 h-6"
+                          />
+                          {/* AI quiz (only for saved lessons) */}
+                          {lesson.id && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1.5"
+                              disabled={generatingQuiz === lesson.id}
+                              onClick={() =>
+                                handleGenerateQuiz(lesson._key, lesson.id!)
+                              }
+                            >
+                              {generatingQuiz === lesson.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Sparkles className="h-3.5 w-3.5" />
+                              )}
+                              AI Quiz
+                            </Button>
+                          )}
+                          {/* Remove */}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => removeLesson(lesson._key)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Lesson fields */}
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>Title</Label>
+                          <Input
+                            placeholder="Lesson title"
+                            value={lesson.title}
+                            onChange={(e) =>
+                              updateLesson(
+                                lesson._key,
+                                "title",
+                                e.target.value
+                              )
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>YouTube Video URL</Label>
+                          <Input
+                            placeholder="https://youtube.com/watch?v=..."
+                            value={lesson.video_url}
+                            onChange={(e) =>
+                              updateLesson(
+                                lesson._key,
+                                "video_url",
+                                e.target.value
+                              )
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2 sm:col-span-2">
+                          <Label>Description</Label>
+                          <Textarea
+                            placeholder="What students will learn..."
+                            value={lesson.description}
+                            onChange={(e) =>
+                              updateLesson(
+                                lesson._key,
+                                "description",
+                                e.target.value
+                              )
+                            }
+                            rows={2}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Reward Amount (PAS)</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            step={0.1}
+                            value={lesson.payback_amount}
+                            onChange={(e) =>
+                              updateLesson(
+                                lesson._key,
+                                "payback_amount",
+                                parseFloat(e.target.value) || 0
+                              )
+                            }
+                          />
+                        </div>
+                      </div>
+
+                      {/* Quiz section (collapsible, only for saved lessons) */}
+                      {lesson.id && (
+                        <>
+                          <Separator className="my-4" />
+                          <Collapsible
+                            open={isQuizOpen}
+                            onOpenChange={() =>
+                              toggleQuizSection(lesson._key)
+                            }
+                          >
+                            <div className="flex items-center justify-between">
+                              <CollapsibleTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="gap-2 px-2"
+                                >
+                                  {isQuizOpen ? (
+                                    <ChevronDown className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronRight className="h-4 w-4" />
+                                  )}
+                                  <CircleHelp className="h-4 w-4 text-primary" />
+                                  Quiz Questions
+                                  {quizCount > 0 && (
+                                    <Badge
+                                      variant="secondary"
+                                      className="ml-1"
+                                    >
+                                      {quizCount}
+                                    </Badge>
+                                  )}
+                                </Button>
+                              </CollapsibleTrigger>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1.5"
+                                onClick={() => addQuiz(lesson._key)}
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                                Add Question
+                              </Button>
+                            </div>
+
+                            <CollapsibleContent className="mt-3 space-y-3">
+                              {quizCount === 0 ? (
+                                <div className="rounded-lg border border-dashed p-6 text-center">
+                                  <CircleHelp className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
+                                  <p className="text-sm text-muted-foreground">
+                                    No quiz questions yet. Add one manually or
+                                    use AI to generate them.
+                                  </p>
+                                </div>
+                              ) : (
+                                lessonQuizzes.map((quiz, qi) => (
+                                  <QuizEditor
+                                    key={quiz._key}
+                                    quiz={quiz}
+                                    index={qi}
+                                    lessonKey={lesson._key}
+                                    isSaving={savingQuiz === quiz._key}
+                                    isDeleting={deletingQuiz === quiz._key}
+                                    onFieldChange={updateQuizField}
+                                    onSave={handleSaveQuiz}
+                                    onDelete={handleDeleteQuiz}
+                                  />
+                                ))
+                              )}
+                            </CollapsibleContent>
+                          </Collapsible>
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
+                </BlurFade>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Bottom save button */}
+        {lessonItems.length > 0 && (
+          <BlurFade delay={0.3}>
+            <div className="mt-8 flex justify-end">
+              <Button
+                onClick={handleSave}
+                disabled={!canSave || saving}
+                className="gap-2"
+              >
+                {saving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                {saving ? "Saving..." : "Save Course"}
+              </Button>
+            </div>
+          </BlurFade>
+        )}
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // COURSE LIST VIEW (default)
+  // =========================================================================
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
       {/* Header */}
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <BlurFade delay={0.1}>
             <h1 className="text-3xl font-bold tracking-tight">
@@ -206,344 +918,237 @@ export default function DashboardPage() {
           </BlurFade>
           <BlurFade delay={0.2}>
             <p className="mt-2 text-muted-foreground">
-              Welcome back, {user.display_name}. Manage your courses and lessons.
+              Welcome back, {user.display_name}. Manage your courses and
+              lessons.
             </p>
           </BlurFade>
         </div>
         <BlurFade delay={0.15}>
-          <Dialog open={showCreateCourse} onOpenChange={setShowCreateCourse}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="h-4 w-4" />
-                New Course
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New Course</DialogTitle>
-                <DialogDescription>
-                  Fill in the details for your new course.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label>Title</Label>
-                  <Input
-                    placeholder="Introduction to Polkadot"
-                    value={courseForm.title}
-                    onChange={(e) =>
-                      setCourseForm((f) => ({ ...f, title: e.target.value }))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Description</Label>
-                  <Textarea
-                    placeholder="A comprehensive course on..."
-                    value={courseForm.description}
-                    onChange={(e) =>
-                      setCourseForm((f) => ({
-                        ...f,
-                        description: e.target.value,
-                      }))
-                    }
-                    rows={3}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Price (PAS)</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    step={0.1}
-                    value={courseForm.price}
-                    onChange={(e) =>
-                      setCourseForm((f) => ({
-                        ...f,
-                        price: parseFloat(e.target.value) || 0,
-                      }))
-                    }
-                  />
-                </div>
-                <Button
-                  className="w-full"
-                  onClick={handleCreateCourse}
-                  disabled={!courseForm.title || !courseForm.description || creating}
-                >
-                  {creating ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : null}
-                  Create Course
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <Button className="gap-2" onClick={openCreateEditor}>
+            <Plus className="h-4 w-4" />
+            New Course
+          </Button>
         </BlurFade>
       </div>
 
-      <Tabs defaultValue="courses" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="courses" className="gap-2">
-            <BookOpen className="h-4 w-4" />
-            My Courses
-          </TabsTrigger>
-          <TabsTrigger value="lessons" className="gap-2" disabled={!selectedCourse}>
-            <Video className="h-4 w-4" />
-            Lessons
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Courses tab */}
-        <TabsContent value="courses">
-          {loading ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-48" />
-              ))}
-            </div>
-          ) : courses.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center py-16 text-center">
-                <GraduationCap className="mb-4 h-12 w-12 text-muted-foreground/50" />
-                <h3 className="text-lg font-semibold">No courses yet</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Create your first course to get started.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {courses.map((course, i) => (
-                <BlurFade key={course.id} delay={0.05 + i * 0.03}>
-                  <MagicCard
-                    className="h-full p-0 cursor-pointer"
-                    gradientColor={
-                      theme === "dark"
-                        ? "rgba(230, 0, 122, 0.08)"
-                        : "rgba(230, 0, 122, 0.05)"
-                    }
-                  >
-                    <div
-                      className="flex h-full flex-col p-5"
-                      onClick={() => selectCourse(course)}
+      {/* Course grid */}
+      {loading ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-48" />
+          ))}
+        </div>
+      ) : courses.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center py-16 text-center">
+            <GraduationCap className="mb-4 h-12 w-12 text-muted-foreground/50" />
+            <h3 className="text-lg font-semibold">No courses yet</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Create your first course to get started.
+            </p>
+            <Button className="mt-6 gap-2" onClick={openCreateEditor}>
+              <Plus className="h-4 w-4" />
+              Create Course
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {courses.map((course, i) => (
+            <BlurFade key={course.id} delay={0.05 + i * 0.03}>
+              <MagicCard
+                className="h-full cursor-pointer p-0"
+                gradientColor={
+                  theme === "dark"
+                    ? "rgba(230, 0, 122, 0.08)"
+                    : "rgba(230, 0, 122, 0.05)"
+                }
+              >
+                <div
+                  className="flex h-full flex-col p-5"
+                  onClick={() => openEditEditor(course)}
+                >
+                  <div className="mb-3 flex items-center justify-between">
+                    <Badge
+                      variant="secondary"
+                      className="gap-1.5 bg-primary/10 text-primary"
                     >
-                      <div className="mb-3 flex items-center justify-between">
-                        <Badge
-                          variant="secondary"
-                          className="gap-1.5 bg-primary/10 text-primary"
-                        >
-                          <Coins className="h-3 w-3" />
-                          {course.price} PAS
-                        </Badge>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteCourse(course.id);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <h3 className="mb-1 font-bold line-clamp-2">
-                        {course.title}
-                      </h3>
-                      <p className="flex-1 text-sm text-muted-foreground line-clamp-2">
-                        {course.description}
-                      </p>
-                      <Separator className="my-3" />
-                      <p className="text-xs text-muted-foreground">
-                        Click to manage lessons
-                      </p>
-                    </div>
-                  </MagicCard>
-                </BlurFade>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        {/* Lessons tab */}
-        <TabsContent value="lessons">
-          {selectedCourse ? (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold">{selectedCourse.title}</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Manage lessons for this course
-                  </p>
-                </div>
-                <Dialog open={showCreateLesson} onOpenChange={setShowCreateLesson}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" className="gap-2">
-                      <Plus className="h-4 w-4" />
-                      Add Lesson
+                      <Coins className="h-3 w-3" />
+                      {course.price} PAS
+                    </Badge>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteCourse(course.id);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
                     </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Add Lesson</DialogTitle>
-                      <DialogDescription>
-                        Add a new video lesson to {selectedCourse.title}.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 pt-4">
-                      <div className="space-y-2">
-                        <Label>Title</Label>
-                        <Input
-                          placeholder="Lesson title"
-                          value={lessonForm.title}
-                          onChange={(e) =>
-                            setLessonForm((f) => ({ ...f, title: e.target.value }))
-                          }
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Description</Label>
-                        <Textarea
-                          placeholder="What students will learn..."
-                          value={lessonForm.description}
-                          onChange={(e) =>
-                            setLessonForm((f) => ({
-                              ...f,
-                              description: e.target.value,
-                            }))
-                          }
-                          rows={2}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>YouTube Video URL</Label>
-                        <Input
-                          placeholder="https://youtube.com/watch?v=..."
-                          value={lessonForm.video_url}
-                          onChange={(e) =>
-                            setLessonForm((f) => ({
-                              ...f,
-                              video_url: e.target.value,
-                            }))
-                          }
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Reward Amount (PAS)</Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          step={0.1}
-                          value={lessonForm.payback_amount}
-                          onChange={(e) =>
-                            setLessonForm((f) => ({
-                              ...f,
-                              payback_amount: parseFloat(e.target.value) || 0,
-                            }))
-                          }
-                        />
-                      </div>
-                      <Button
-                        className="w-full"
-                        onClick={handleCreateLesson}
-                        disabled={
-                          !lessonForm.title ||
-                          !lessonForm.description ||
-                          !lessonForm.video_url ||
-                          creatingLesson
-                        }
-                      >
-                        {creatingLesson ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : null}
-                        Add Lesson
-                      </Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              </div>
+                  </div>
+                  <h3 className="mb-1 font-bold line-clamp-2">
+                    {course.title}
+                  </h3>
+                  <p className="flex-1 text-sm text-muted-foreground line-clamp-2">
+                    {course.description}
+                  </p>
+                  <Separator className="my-3" />
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Video className="h-4 w-4" />
+                    Click to edit course &amp; lessons
+                  </div>
+                </div>
+              </MagicCard>
+            </BlurFade>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
-              {lessonsLoading ? (
-                <div className="space-y-3">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <Skeleton key={i} className="h-20" />
-                  ))}
-                </div>
-              ) : lessons.length === 0 ? (
-                <Card>
-                  <CardContent className="flex flex-col items-center py-12 text-center">
-                    <Video className="mb-3 h-10 w-10 text-muted-foreground/50" />
-                    <p className="text-sm text-muted-foreground">
-                      No lessons yet. Click &quot;Add Lesson&quot; to get started.
-                    </p>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="space-y-3">
-                  {lessons.map((lesson, i) => (
-                    <BlurFade key={lesson.id} delay={0.05 + i * 0.03}>
-                      <Card>
-                        <CardContent className="flex items-center gap-4 p-4">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                            <Video className="h-4 w-4" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-medium truncate">
-                              {lesson.title}
-                            </h3>
-                            <p className="text-sm text-muted-foreground truncate">
-                              {lesson.description}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            {lesson.payback_amount > 0 && (
-                              <Badge variant="outline" className="gap-1 text-xs">
-                                <Coins className="h-3 w-3" />
-                                {lesson.payback_amount} PAS
-                              </Badge>
-                            )}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-1.5"
-                              disabled={generatingQuiz === lesson.id}
-                              onClick={() => handleGenerateQuiz(lesson.id)}
-                            >
-                              {generatingQuiz === lesson.id ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <Sparkles className="h-3.5 w-3.5" />
-                              )}
-                              AI Quiz
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive"
-                              onClick={() => handleDeleteLesson(lesson.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </BlurFade>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            <Card>
-              <CardContent className="flex flex-col items-center py-12 text-center">
-                <BookOpen className="mb-3 h-10 w-10 text-muted-foreground/50" />
-                <p className="text-sm text-muted-foreground">
-                  Select a course from the &quot;My Courses&quot; tab to manage its lessons.
-                </p>
-              </CardContent>
-            </Card>
+// ===========================================================================
+// Quiz Editor sub-component
+// ===========================================================================
+
+function QuizEditor({
+  quiz,
+  index,
+  lessonKey,
+  isSaving,
+  isDeleting,
+  onFieldChange,
+  onSave,
+  onDelete,
+}: {
+  quiz: QuizFormItem;
+  index: number;
+  lessonKey: string;
+  isSaving: boolean;
+  isDeleting: boolean;
+  onFieldChange: (
+    lessonKey: string,
+    quizKey: string,
+    field: keyof QuizFormItem,
+    value: string | number
+  ) => void;
+  onSave: (lessonKey: string, quiz: QuizFormItem) => void;
+  onDelete: (lessonKey: string, quiz: QuizFormItem) => void;
+}) {
+  const isValid =
+    quiz.question.trim().length > 0 &&
+    quiz.option_a.trim().length > 0 &&
+    quiz.option_b.trim().length > 0 &&
+    quiz.option_c.trim().length > 0 &&
+    quiz.option_d.trim().length > 0;
+
+  return (
+    <div className="rounded-lg border bg-muted/30 p-4">
+      {/* Quiz header */}
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-xs">
+            Q{index + 1}
+          </Badge>
+          {quiz.id && (
+            <Badge
+              variant="secondary"
+              className="text-xs bg-green-500/10 text-green-700 dark:text-green-400"
+            >
+              Saved
+            </Badge>
           )}
-        </TabsContent>
-      </Tabs>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            disabled={!isValid || isSaving}
+            onClick={() => onSave(lessonKey, quiz)}
+          >
+            {isSaving ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Save className="h-3.5 w-3.5" />
+            )}
+            {isSaving ? "Saving..." : "Save"}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-destructive hover:text-destructive"
+            disabled={isDeleting}
+            onClick={() => onDelete(lessonKey, quiz)}
+          >
+            {isDeleting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
+      </div>
+
+      {/* Question */}
+      <div className="mb-3 space-y-2">
+        <Label className="text-xs">Question</Label>
+        <Input
+          placeholder="Enter quiz question..."
+          value={quiz.question}
+          onChange={(e) =>
+            onFieldChange(lessonKey, quiz._key, "question", e.target.value)
+          }
+        />
+      </div>
+
+      {/* Options grid */}
+      <div className="mb-3 grid gap-3 sm:grid-cols-2">
+        {(["option_a", "option_b", "option_c", "option_d"] as const).map(
+          (field, i) => (
+            <div key={field} className="space-y-1">
+              <Label className="text-xs">
+                Option {OPTION_LABELS[i + 1]}
+              </Label>
+              <Input
+                placeholder={`Option ${OPTION_LABELS[i + 1]}`}
+                value={quiz[field]}
+                onChange={(e) =>
+                  onFieldChange(lessonKey, quiz._key, field, e.target.value)
+                }
+              />
+            </div>
+          )
+        )}
+      </div>
+
+      {/* Correct answer */}
+      <div className="space-y-1">
+        <Label className="text-xs">Correct Answer</Label>
+        <Select
+          value={String(quiz.correct_option)}
+          onValueChange={(val) =>
+            onFieldChange(
+              lessonKey,
+              quiz._key,
+              "correct_option",
+              parseInt(val, 10)
+            )
+          }
+        >
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="1">A</SelectItem>
+            <SelectItem value="2">B</SelectItem>
+            <SelectItem value="3">C</SelectItem>
+            <SelectItem value="4">D</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
     </div>
   );
 }

@@ -1,26 +1,21 @@
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Path, Query, status
 from pydantic import UUID4
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from src.course import service
-from src.course.dependencies import (
-    valid_course_id,
-    valid_lesson_id,
-    valid_purchase_id,
-    valid_quiz_answer_id,
-    valid_quiz_id,
-)
+from src.course.dependencies import valid_course_id, valid_lesson_id, valid_quiz_id
 from src.course.models import Course, CoursePurchase, Lesson, Quiz, QuizAnswer
 from src.course.schemas import (
-    CourseCreate,
     CoursePurchaseCreate,
     CoursePurchaseResponse,
+    CourseCreate,
+    CourseProgressResponse,
     CourseResponse,
     CourseUpdate,
+    CourseWithLessonsResponse,
     GenerateQuizRequest,
-    LessonCreate,
+    LessonProgressResponse,
     LessonResponse,
-    LessonUpdate,
     QuizAnswerCreate,
     QuizAnswerResponse,
     QuizCreate,
@@ -50,7 +45,7 @@ async def list_courses(
     limit: int = Query(
         default=100, ge=1, le=1000, description="Maximum number of records to return."
     ),
-) -> list[Course]:
+) -> list[CourseResponse]:
     return await service.get_courses(session, offset=offset, limit=limit)
 
 
@@ -66,44 +61,56 @@ async def list_courses(
 )
 async def get_course(
     course: Course = Depends(valid_course_id),
-) -> Course:
-    return course
+    session: AsyncSession = Depends(get_session),
+) -> CourseResponse:
+    return await service.get_course_response(session, course)
 
 
 @course_router.post(
     "",
-    response_model=CourseResponse,
+    response_model=CourseWithLessonsResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Create a new course",
-    description="Create a new course authored by a teacher. The author_id must reference an existing user.",
+    summary="Create a course with lessons",
+    description=(
+        "Create a new course together with all its lessons in a single request."
+    ),
     responses={
-        status.HTTP_201_CREATED: {"description": "Course created successfully."},
+        status.HTTP_201_CREATED: {
+            "description": "Course and lessons created successfully.",
+        },
         status.HTTP_422_UNPROCESSABLE_ENTITY: {"description": "Validation error."},
     },
 )
 async def create_course(
     data: CourseCreate,
     session: AsyncSession = Depends(get_session),
-) -> Course:
-    return await service.create_course(session, data)
+) -> CourseWithLessonsResponse:
+    return await service.create_course_with_lessons(session, data)
 
 
-@course_router.patch(
+@course_router.put(
     "/{course_id}",
-    response_model=CourseResponse,
-    summary="Update a course",
-    description="Partially update a course's title, description, or price. Only provided fields are changed.",
+    response_model=CourseWithLessonsResponse,
+    summary="Update a course with lessons",
+    description=(
+        "Update an existing course together with all its lessons in a single request. "
+        "Lessons are synced to the desired state: new lessons are created, "
+        "existing ones updated, and missing ones deleted."
+    ),
     responses={
-        status.HTTP_200_OK: {"description": "Course updated successfully."},
+        status.HTTP_200_OK: {
+            "description": "Course and lessons updated successfully.",
+        },
         status.HTTP_404_NOT_FOUND: {"description": "Course not found."},
+        status.HTTP_422_UNPROCESSABLE_ENTITY: {"description": "Validation error."},
     },
 )
 async def update_course(
     data: CourseUpdate,
     course: Course = Depends(valid_course_id),
     session: AsyncSession = Depends(get_session),
-) -> Course:
-    return await service.update_course(session, course, data)
+) -> CourseWithLessonsResponse:
+    return await service.update_course_with_lessons(session, course, data)
 
 
 @course_router.delete(
@@ -133,7 +140,7 @@ lesson_router = APIRouter(prefix="/courses/{course_id}/lessons", tags=["Lessons"
     "",
     response_model=list[LessonResponse],
     summary="List lessons for a course",
-    description="Retrieve a paginated list of lessons belonging to a specific course.",
+    description="Retrieve a paginated list of lessons belonging to a specific course, ordered by lesson_index.",
     responses={
         status.HTTP_200_OK: {"description": "A list of lessons returned successfully."},
         status.HTTP_404_NOT_FOUND: {"description": "Course not found."},
@@ -152,26 +159,7 @@ async def list_lessons(
     )
 
 
-@lesson_router.post(
-    "",
-    response_model=LessonResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create a lesson",
-    description="Add a new lesson to an existing course.",
-    responses={
-        status.HTTP_201_CREATED: {"description": "Lesson created successfully."},
-        status.HTTP_404_NOT_FOUND: {"description": "Course not found."},
-    },
-)
-async def create_lesson(
-    data: LessonCreate,
-    course: Course = Depends(valid_course_id),
-    session: AsyncSession = Depends(get_session),
-) -> Lesson:
-    return await service.create_lesson(session, course.id, data)
-
-
-# Standalone lesson endpoints (for update/delete/get by lesson_id)
+# Standalone lesson endpoint (get by ID — used by the lesson detail page)
 lesson_detail_router = APIRouter(prefix="/lessons", tags=["Lessons"])
 
 
@@ -189,41 +177,6 @@ async def get_lesson(
     lesson: Lesson = Depends(valid_lesson_id),
 ) -> Lesson:
     return lesson
-
-
-@lesson_detail_router.patch(
-    "/{lesson_id}",
-    response_model=LessonResponse,
-    summary="Update a lesson",
-    description="Partially update a lesson's title, description, video URL, or payback amount.",
-    responses={
-        status.HTTP_200_OK: {"description": "Lesson updated successfully."},
-        status.HTTP_404_NOT_FOUND: {"description": "Lesson not found."},
-    },
-)
-async def update_lesson(
-    data: LessonUpdate,
-    lesson: Lesson = Depends(valid_lesson_id),
-    session: AsyncSession = Depends(get_session),
-) -> Lesson:
-    return await service.update_lesson(session, lesson, data)
-
-
-@lesson_detail_router.delete(
-    "/{lesson_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete a lesson",
-    description="Permanently delete a lesson and its quizzes.",
-    responses={
-        status.HTTP_204_NO_CONTENT: {"description": "Lesson deleted successfully."},
-        status.HTTP_404_NOT_FOUND: {"description": "Lesson not found."},
-    },
-)
-async def delete_lesson(
-    lesson: Lesson = Depends(valid_lesson_id),
-    session: AsyncSession = Depends(get_session),
-) -> None:
-    await service.delete_lesson(session, lesson)
 
 
 # ===========================================================================
@@ -256,28 +209,6 @@ async def list_quizzes(
 
 
 @quiz_router.post(
-    "",
-    response_model=QuizResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create a quiz question",
-    description=(
-        "Add a new multiple-choice quiz question to a lesson. "
-        "Each quiz has four options (A-D) and one correct answer."
-    ),
-    responses={
-        status.HTTP_201_CREATED: {"description": "Quiz created successfully."},
-        status.HTTP_404_NOT_FOUND: {"description": "Lesson not found."},
-    },
-)
-async def create_quiz(
-    data: QuizCreate,
-    lesson: Lesson = Depends(valid_lesson_id),
-    session: AsyncSession = Depends(get_session),
-) -> Quiz:
-    return await service.create_quiz(session, lesson.id, data)
-
-
-@quiz_router.post(
     "/generate",
     response_model=list[QuizResponse],
     status_code=status.HTTP_201_CREATED,
@@ -305,34 +236,43 @@ async def generate_quizzes(
     return await service.gen_quiz(session, lesson, num_questions=body.num_questions)
 
 
-# Standalone quiz endpoints
+@quiz_router.post(
+    "",
+    response_model=QuizResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a quiz question",
+    description="Manually create a single quiz question for a lesson.",
+    responses={
+        status.HTTP_201_CREATED: {
+            "description": "Quiz question created successfully.",
+        },
+        status.HTTP_404_NOT_FOUND: {"description": "Lesson not found."},
+        status.HTTP_422_UNPROCESSABLE_ENTITY: {"description": "Validation error."},
+    },
+)
+async def create_quiz(
+    data: QuizCreate,
+    lesson: Lesson = Depends(valid_lesson_id),
+    session: AsyncSession = Depends(get_session),
+) -> Quiz:
+    return await service.create_quiz(session, lesson, data)
+
+
+# ===========================================================================
+# Quiz detail router (standalone — /quizzes/{quiz_id})
+# ===========================================================================
 quiz_detail_router = APIRouter(prefix="/quizzes", tags=["Quizzes"])
 
 
-@quiz_detail_router.get(
-    "/{quiz_id}",
-    response_model=QuizResponse,
-    summary="Get a quiz by ID",
-    description="Retrieve a single quiz question by its unique identifier.",
-    responses={
-        status.HTTP_200_OK: {"description": "Quiz found and returned."},
-        status.HTTP_404_NOT_FOUND: {"description": "Quiz not found."},
-    },
-)
-async def get_quiz(
-    quiz: Quiz = Depends(valid_quiz_id),
-) -> Quiz:
-    return quiz
-
-
-@quiz_detail_router.patch(
+@quiz_detail_router.put(
     "/{quiz_id}",
     response_model=QuizResponse,
     summary="Update a quiz question",
-    description="Partially update a quiz question's text, options, or correct answer.",
+    description="Update an existing quiz question's text, options, and correct answer.",
     responses={
-        status.HTTP_200_OK: {"description": "Quiz updated successfully."},
+        status.HTTP_200_OK: {"description": "Quiz question updated successfully."},
         status.HTTP_404_NOT_FOUND: {"description": "Quiz not found."},
+        status.HTTP_422_UNPROCESSABLE_ENTITY: {"description": "Validation error."},
     },
 )
 async def update_quiz(
@@ -347,9 +287,11 @@ async def update_quiz(
     "/{quiz_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a quiz question",
-    description="Permanently delete a quiz question and all associated answers.",
+    description="Permanently delete a quiz question and all its answers.",
     responses={
-        status.HTTP_204_NO_CONTENT: {"description": "Quiz deleted successfully."},
+        status.HTTP_204_NO_CONTENT: {
+            "description": "Quiz question deleted successfully.",
+        },
         status.HTTP_404_NOT_FOUND: {"description": "Quiz not found."},
     },
 )
@@ -357,7 +299,7 @@ async def delete_quiz(
     quiz: Quiz = Depends(valid_quiz_id),
     session: AsyncSession = Depends(get_session),
 ) -> None:
-    await service.delete_quiz(session, quiz)
+    return await service.delete_quiz(session, quiz)
 
 
 # ===========================================================================
@@ -366,29 +308,6 @@ async def delete_quiz(
 quiz_answer_router = APIRouter(
     prefix="/quizzes/{quiz_id}/answers", tags=["Quiz Answers"]
 )
-
-
-@quiz_answer_router.get(
-    "",
-    response_model=list[QuizAnswerResponse],
-    summary="List answers for a quiz",
-    description="Retrieve a paginated list of submitted answers for a specific quiz question.",
-    responses={
-        status.HTTP_200_OK: {"description": "A list of answers returned successfully."},
-        status.HTTP_404_NOT_FOUND: {"description": "Quiz not found."},
-    },
-)
-async def list_quiz_answers(
-    quiz: Quiz = Depends(valid_quiz_id),
-    session: AsyncSession = Depends(get_session),
-    offset: int = Query(default=0, ge=0, description="Number of records to skip."),
-    limit: int = Query(
-        default=100, ge=1, le=1000, description="Maximum number of records to return."
-    ),
-) -> list[QuizAnswer]:
-    return await service.get_quiz_answers_by_quiz(
-        session, quiz.id, offset=offset, limit=limit
-    )
 
 
 @quiz_answer_router.post(
@@ -413,40 +332,52 @@ async def create_quiz_answer(
     return await service.create_quiz_answer(session, data)
 
 
-quiz_answer_detail_router = APIRouter(prefix="/quiz-answers", tags=["Quiz Answers"])
+# ===========================================================================
+# Progress router (quiz results + course progress)
+# ===========================================================================
+progress_router = APIRouter(prefix="", tags=["Progress"])
 
 
-@quiz_answer_detail_router.get(
-    "/{answer_id}",
-    response_model=QuizAnswerResponse,
-    summary="Get a quiz answer by ID",
-    description="Retrieve a single quiz answer by its unique identifier.",
+@progress_router.get(
+    "/lessons/{lesson_id}/progress/{user_id}",
+    response_model=LessonProgressResponse,
+    summary="Get quiz results for a lesson",
+    description=(
+        "Retrieve a user's quiz results for a specific lesson, including "
+        "per-question correctness and overall score."
+    ),
     responses={
-        status.HTTP_200_OK: {"description": "Answer found and returned."},
-        status.HTTP_404_NOT_FOUND: {"description": "Answer not found."},
+        status.HTTP_200_OK: {"description": "Lesson progress returned."},
+        status.HTTP_404_NOT_FOUND: {"description": "Lesson not found."},
     },
 )
-async def get_quiz_answer(
-    answer: QuizAnswer = Depends(valid_quiz_answer_id),
-) -> QuizAnswer:
-    return answer
-
-
-@quiz_answer_detail_router.delete(
-    "/{answer_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete a quiz answer",
-    description="Permanently delete a submitted quiz answer.",
-    responses={
-        status.HTTP_204_NO_CONTENT: {"description": "Answer deleted successfully."},
-        status.HTTP_404_NOT_FOUND: {"description": "Answer not found."},
-    },
-)
-async def delete_quiz_answer(
-    answer: QuizAnswer = Depends(valid_quiz_answer_id),
+async def get_lesson_progress(
+    lesson: Lesson = Depends(valid_lesson_id),
+    user_id: UUID4 = Path(..., description="User ID"),
     session: AsyncSession = Depends(get_session),
-) -> None:
-    await service.delete_quiz_answer(session, answer)
+) -> LessonProgressResponse:
+    return await service.get_lesson_progress(session, lesson.id, user_id)
+
+
+@progress_router.get(
+    "/courses/{course_id}/progress/{user_id}",
+    response_model=CourseProgressResponse,
+    summary="Get course progress for a user",
+    description=(
+        "Retrieve a user's overall progress for a course, including "
+        "per-lesson completion status and total PAS earned."
+    ),
+    responses={
+        status.HTTP_200_OK: {"description": "Course progress returned."},
+        status.HTTP_404_NOT_FOUND: {"description": "Course not found."},
+    },
+)
+async def get_course_progress(
+    course: Course = Depends(valid_course_id),
+    user_id: UUID4 = Path(..., description="User ID"),
+    session: AsyncSession = Depends(get_session),
+) -> CourseProgressResponse:
+    return await service.get_course_progress(session, course.id, user_id)
 
 
 # ===========================================================================
@@ -494,22 +425,6 @@ async def list_purchases(
     return []
 
 
-@purchase_router.get(
-    "/{purchase_id}",
-    response_model=CoursePurchaseResponse,
-    summary="Get a purchase by ID",
-    description="Retrieve a single course purchase record by its unique identifier.",
-    responses={
-        status.HTTP_200_OK: {"description": "Purchase found and returned."},
-        status.HTTP_404_NOT_FOUND: {"description": "Purchase not found."},
-    },
-)
-async def get_purchase(
-    purchase: CoursePurchase = Depends(valid_purchase_id),
-) -> CoursePurchase:
-    return purchase
-
-
 @purchase_router.post(
     "",
     response_model=CoursePurchaseResponse,
@@ -543,20 +458,3 @@ async def create_purchase(
 
         raise CourseNotFound()
     return await service.create_purchase(session, data, course)
-
-
-@purchase_router.delete(
-    "/{purchase_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete a purchase record",
-    description="Permanently delete a course purchase record.",
-    responses={
-        status.HTTP_204_NO_CONTENT: {"description": "Purchase deleted successfully."},
-        status.HTTP_404_NOT_FOUND: {"description": "Purchase not found."},
-    },
-)
-async def delete_purchase(
-    purchase: CoursePurchase = Depends(valid_purchase_id),
-    session: AsyncSession = Depends(get_session),
-) -> None:
-    await service.delete_purchase(session, purchase)

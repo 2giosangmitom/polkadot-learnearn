@@ -43,7 +43,7 @@ export function HeroSection() {
           </TextAnimate>
         </h1>
 
-        <div className="mb-6 flex items-center justify-center gap-3 text-4xl font-extrabold tracking-tight sm:text-5xl md:text-6xl lg:text-7xl">
+        <div className="mb-6 flex flex-wrap items-center justify-center gap-3 text-3xl font-extrabold tracking-tight sm:text-4xl md:text-6xl lg:text-7xl">
           <span className="text-primary">Earn</span>
           <WordRotate
             className="text-primary"
@@ -69,7 +69,7 @@ export function HeroSection() {
           </Link>
           <Link href="/onboarding">
             <ShimmerButton
-              className="h-12 px-8 text-base font-semibold"
+              className="h-12 px-8 text-base font-semibold text-black dark:text-white"
               shimmerColor="#ffffff"
               background="transparent"
               shimmerSize="0.08em"
@@ -83,7 +83,7 @@ export function HeroSection() {
       {/* Stats bar */}
       <div className="relative mt-20 w-full max-w-3xl rounded-2xl border border-border/50 bg-card/50 p-6 backdrop-blur-sm">
         <BorderBeam size={200} duration={8} colorFrom="#e6007a" colorTo="#552bbf" />
-        <div className="grid grid-cols-3 gap-6 text-center">
+        <div className="grid grid-cols-3 gap-3 text-center sm:gap-6">
           <div>
             <div className="text-2xl font-bold text-primary sm:text-3xl">
               100%

@@ -5,29 +5,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 # ---------------------------------------------------------------------------
-# Course
+# Course (read-only responses)
 # ---------------------------------------------------------------------------
-class CourseCreate(BaseModel):
-    """Schema for creating a new course."""
-
-    title: str = Field(..., min_length=1, description="Course title.")
-    description: str = Field(..., min_length=1, description="Course description.")
-    price: float = Field(..., ge=0, description="Course price in token units.")
-    author_id: uuid.UUID = Field(
-        ..., description="UUID of the teacher who authored the course."
-    )
-
-
-class CourseUpdate(BaseModel):
-    """Schema for partially updating a course."""
-
-    title: str | None = Field(default=None, min_length=1, description="New title.")
-    description: str | None = Field(
-        default=None, min_length=1, description="New description."
-    )
-    price: float | None = Field(default=None, ge=0, description="New price.")
-
-
 class CourseResponse(BaseModel):
     """Schema returned when reading a course."""
 
@@ -38,39 +17,16 @@ class CourseResponse(BaseModel):
     description: str = Field(description="Course description.")
     price: float = Field(description="Course price.")
     author_id: uuid.UUID = Field(description="Author (teacher) ID.")
+    author_wallet_address: str = Field(
+        description="Wallet address of the author (teacher) for direct payment.",
+    )
     created_at: datetime = Field(description="Creation timestamp.")
     updated_at: datetime = Field(description="Last update timestamp.")
 
 
 # ---------------------------------------------------------------------------
-# Lesson
+# Lesson (read-only responses)
 # ---------------------------------------------------------------------------
-class LessonCreate(BaseModel):
-    """Schema for creating a new lesson within a course."""
-
-    title: str = Field(..., min_length=1, description="Lesson title.")
-    description: str = Field(..., min_length=1, description="Lesson description.")
-    video_url: str = Field(..., min_length=1, description="URL of the lesson video.")
-    payback_amount: float = Field(
-        ..., ge=0, description="Token amount paid back to the student upon completion."
-    )
-
-
-class LessonUpdate(BaseModel):
-    """Schema for partially updating a lesson."""
-
-    title: str | None = Field(default=None, min_length=1, description="New title.")
-    description: str | None = Field(
-        default=None, min_length=1, description="New description."
-    )
-    video_url: str | None = Field(
-        default=None, min_length=1, description="New video URL."
-    )
-    payback_amount: float | None = Field(
-        default=None, ge=0, description="New payback amount."
-    )
-
-
 class LessonResponse(BaseModel):
     """Schema returned when reading a lesson."""
 
@@ -81,50 +37,92 @@ class LessonResponse(BaseModel):
     description: str = Field(description="Lesson description.")
     video_url: str = Field(description="Video URL.")
     payback_amount: float = Field(description="Payback amount.")
+    lesson_index: int = Field(description="Ordering index within the course.")
     course_id: uuid.UUID = Field(description="Parent course ID.")
     created_at: datetime = Field(description="Creation timestamp.")
     updated_at: datetime = Field(description="Last update timestamp.")
 
 
 # ---------------------------------------------------------------------------
+# Upsert: Course + Lessons in one request
+# ---------------------------------------------------------------------------
+class LessonUpsert(BaseModel):
+    """A single lesson inside a course create/update request.
+
+    If ``id`` is provided, the existing lesson is updated.
+    If ``id`` is ``None``, a new lesson is created.
+    Lessons present in the DB but *not* included in the request are deleted.
+    """
+
+    id: uuid.UUID | None = Field(
+        default=None,
+        description="Existing lesson ID (omit or null to create a new lesson).",
+    )
+    title: str = Field(..., min_length=1, description="Lesson title.")
+    description: str = Field(..., min_length=1, description="Lesson description.")
+    video_url: str = Field(..., min_length=1, description="URL of the lesson video.")
+    payback_amount: float = Field(
+        ..., ge=0, description="Token amount paid back to the student upon completion."
+    )
+    lesson_index: int = Field(
+        ..., ge=0, description="Ordering index within the course."
+    )
+
+
+class CourseCreate(BaseModel):
+    """Create a new course together with all its lessons."""
+
+    title: str = Field(..., min_length=1, description="Course title.")
+    description: str = Field(..., min_length=1, description="Course description.")
+    price: float = Field(..., ge=0, description="Course price in token units.")
+    author_id: uuid.UUID = Field(
+        ..., description="UUID of the teacher who authored the course."
+    )
+    lessons: list[LessonUpsert] = Field(
+        default_factory=list,
+        description="Full list of lessons for the course.",
+    )
+
+
+class CourseUpdate(BaseModel):
+    """Update an existing course together with all its lessons.
+
+    The ``lessons`` array represents the *desired* state — any existing lessons
+    not present in the array will be deleted.
+    """
+
+    title: str = Field(..., min_length=1, description="Course title.")
+    description: str = Field(..., min_length=1, description="Course description.")
+    price: float = Field(..., ge=0, description="Course price in token units.")
+    lessons: list[LessonUpsert] = Field(
+        default_factory=list,
+        description="Full list of lessons for the course (desired state).",
+    )
+
+
+class CourseWithLessonsResponse(BaseModel):
+    """Course with its nested lessons returned after an upsert."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID = Field(description="Unique course identifier.")
+    title: str = Field(description="Course title.")
+    description: str = Field(description="Course description.")
+    price: float = Field(description="Course price.")
+    author_id: uuid.UUID = Field(description="Author (teacher) ID.")
+    author_wallet_address: str = Field(
+        description="Wallet address of the author (teacher) for direct payment.",
+    )
+    created_at: datetime = Field(description="Creation timestamp.")
+    updated_at: datetime = Field(description="Last update timestamp.")
+    lessons: list[LessonResponse] = Field(
+        description="Lessons belonging to this course."
+    )
+
+
+# ---------------------------------------------------------------------------
 # Quiz
 # ---------------------------------------------------------------------------
-class QuizCreate(BaseModel):
-    """Schema for creating a new quiz question within a lesson."""
-
-    question: str = Field(..., min_length=1, description="The quiz question text.")
-    option_a: str = Field(..., min_length=1, description="Answer option A.")
-    option_b: str = Field(..., min_length=1, description="Answer option B.")
-    option_c: str = Field(..., min_length=1, description="Answer option C.")
-    option_d: str = Field(..., min_length=1, description="Answer option D.")
-    correct_option: int = Field(
-        ..., ge=1, le=4, description="Correct option number (1=A, 2=B, 3=C, 4=D)."
-    )
-
-
-class QuizUpdate(BaseModel):
-    """Schema for partially updating a quiz question."""
-
-    question: str | None = Field(
-        default=None, min_length=1, description="New question text."
-    )
-    option_a: str | None = Field(
-        default=None, min_length=1, description="New option A."
-    )
-    option_b: str | None = Field(
-        default=None, min_length=1, description="New option B."
-    )
-    option_c: str | None = Field(
-        default=None, min_length=1, description="New option C."
-    )
-    option_d: str | None = Field(
-        default=None, min_length=1, description="New option D."
-    )
-    correct_option: int | None = Field(
-        default=None, ge=1, le=4, description="New correct option number."
-    )
-
-
 class QuizResponse(BaseModel):
     """Schema returned when reading a quiz question."""
 
@@ -137,6 +135,7 @@ class QuizResponse(BaseModel):
     option_c: str = Field(description="Option C.")
     option_d: str = Field(description="Option D.")
     correct_option: int = Field(description="Correct option number (1-4).")
+    quiz_index: int = Field(description="Ordering index within the lesson.")
     lesson_id: uuid.UUID = Field(description="Parent lesson ID.")
     created_at: datetime = Field(description="Creation timestamp.")
     updated_at: datetime = Field(description="Last update timestamp.")
@@ -151,6 +150,34 @@ class GenerateQuizRequest(BaseModel):
         le=10,
         description="Number of quiz questions to generate (1-10).",
     )
+
+
+class QuizCreate(BaseModel):
+    """Schema for manually creating a quiz question for a lesson."""
+
+    question: str = Field(..., min_length=1, description="Quiz question text.")
+    option_a: str = Field(..., min_length=1, description="Option A.")
+    option_b: str = Field(..., min_length=1, description="Option B.")
+    option_c: str = Field(..., min_length=1, description="Option C.")
+    option_d: str = Field(..., min_length=1, description="Option D.")
+    correct_option: int = Field(
+        ..., ge=1, le=4, description="Correct option number (1=A, 2=B, 3=C, 4=D)."
+    )
+    quiz_index: int = Field(..., ge=0, description="Ordering index within the lesson.")
+
+
+class QuizUpdate(BaseModel):
+    """Schema for updating an existing quiz question."""
+
+    question: str = Field(..., min_length=1, description="Quiz question text.")
+    option_a: str = Field(..., min_length=1, description="Option A.")
+    option_b: str = Field(..., min_length=1, description="Option B.")
+    option_c: str = Field(..., min_length=1, description="Option C.")
+    option_d: str = Field(..., min_length=1, description="Option D.")
+    correct_option: int = Field(
+        ..., ge=1, le=4, description="Correct option number (1=A, 2=B, 3=C, 4=D)."
+    )
+    quiz_index: int = Field(..., ge=0, description="Ordering index within the lesson.")
 
 
 class GeneratedQuizItem(BaseModel):
@@ -232,3 +259,67 @@ class CoursePurchaseResponse(BaseModel):
     course_id: uuid.UUID = Field(description="Purchased course ID.")
     user_id: uuid.UUID = Field(description="Purchasing user ID.")
     transaction_hash: str = Field(description="On-chain transaction hash (hex).")
+
+
+# ---------------------------------------------------------------------------
+# Progress / Results
+# ---------------------------------------------------------------------------
+class QuizResultItem(BaseModel):
+    """A single quiz question with the user's answer and correctness."""
+
+    quiz_id: uuid.UUID = Field(description="Quiz ID.")
+    question: str = Field(description="Quiz question text.")
+    option_a: str = Field(description="Option A.")
+    option_b: str = Field(description="Option B.")
+    option_c: str = Field(description="Option C.")
+    option_d: str = Field(description="Option D.")
+    correct_option: int = Field(description="Correct option number (1-4).")
+    selected_option: int | None = Field(
+        description="The user's selected option (null if not answered)."
+    )
+    is_correct: bool = Field(description="Whether the user's answer was correct.")
+
+
+class LessonProgressResponse(BaseModel):
+    """Quiz results for a specific lesson for a specific user."""
+
+    lesson_id: uuid.UUID = Field(description="Lesson ID.")
+    total_questions: int = Field(description="Total quiz questions in the lesson.")
+    answered: int = Field(description="Number of questions answered by the user.")
+    correct: int = Field(description="Number of correct answers.")
+    score_pct: float = Field(
+        description="Score as a percentage (0-100). 0 if no questions."
+    )
+    completed: bool = Field(description="Whether the user has answered all questions.")
+    passed: bool = Field(description="Whether the user scored >= 70%.")
+    results: list[QuizResultItem] = Field(description="Per-question results.")
+
+
+class CourseProgressResponse(BaseModel):
+    """Overall progress for a course for a specific user."""
+
+    course_id: uuid.UUID = Field(description="Course ID.")
+    total_lessons: int = Field(description="Total lessons in the course.")
+    completed_lessons: int = Field(
+        description="Number of lessons where all quizzes are answered."
+    )
+    passed_lessons: int = Field(description="Number of lessons where score >= 70%.")
+    total_earned: float = Field(description="Total PAS earned from passing lessons.")
+    lessons: list["LessonProgressSummary"] = Field(
+        description="Per-lesson progress summaries."
+    )
+
+
+class LessonProgressSummary(BaseModel):
+    """Summary of progress for a single lesson within a course."""
+
+    lesson_id: uuid.UUID = Field(description="Lesson ID.")
+    lesson_title: str = Field(description="Lesson title.")
+    lesson_index: int = Field(description="Lesson ordering index.")
+    payback_amount: float = Field(description="PAS reward for this lesson.")
+    total_questions: int = Field(description="Total quiz questions.")
+    answered: int = Field(description="Number answered.")
+    correct: int = Field(description="Number correct.")
+    score_pct: float = Field(description="Score percentage (0-100).")
+    completed: bool = Field(description="All questions answered.")
+    passed: bool = Field(description="Score >= 70%.")

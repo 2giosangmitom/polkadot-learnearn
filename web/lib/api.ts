@@ -21,6 +21,7 @@ export interface Course {
   description: string;
   price: number;
   author_id: string;
+  author_wallet_address: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -31,6 +32,7 @@ export interface Lesson {
   description: string;
   video_url: string;
   payback_amount: number;
+  lesson_index: number;
   course_id: string;
   created_at: string;
   updated_at: string;
@@ -44,6 +46,7 @@ export interface Quiz {
   option_c: string;
   option_d: string;
   correct_option: number;
+  quiz_index: number;
   lesson_id: string;
   created_at: string;
   updated_at: string;
@@ -77,40 +80,32 @@ export interface UserUpdate {
   display_name?: string;
 }
 
+export interface LessonUpsert {
+  id?: string | null;
+  title: string;
+  description: string;
+  video_url: string;
+  payback_amount: number;
+  lesson_index: number;
+}
+
 export interface CourseCreate {
   title: string;
   description: string;
   price: number;
   author_id: string;
+  lessons: LessonUpsert[];
 }
 
 export interface CourseUpdate {
-  title?: string;
-  description?: string;
-  price?: number;
-}
-
-export interface LessonCreate {
   title: string;
   description: string;
-  video_url: string;
-  payback_amount: number;
+  price: number;
+  lessons: LessonUpsert[];
 }
 
-export interface LessonUpdate {
-  title?: string;
-  description?: string;
-  video_url?: string;
-  payback_amount?: number;
-}
-
-export interface QuizCreate {
-  question: string;
-  option_a: string;
-  option_b: string;
-  option_c: string;
-  option_d: string;
-  correct_option: number;
+export interface CourseWithLessonsResponse extends Course {
+  lessons: Lesson[];
 }
 
 export interface QuizAnswerCreate {
@@ -127,6 +122,72 @@ export interface CoursePurchaseCreate {
 
 export interface GenerateQuizRequest {
   num_questions?: number;
+}
+
+export interface QuizCreate {
+  question: string;
+  option_a: string;
+  option_b: string;
+  option_c: string;
+  option_d: string;
+  correct_option: number;
+  quiz_index: number;
+}
+
+export interface QuizUpdate {
+  question: string;
+  option_a: string;
+  option_b: string;
+  option_c: string;
+  option_d: string;
+  correct_option: number;
+  quiz_index: number;
+}
+
+// Progress / Results types
+export interface QuizResultItem {
+  quiz_id: string;
+  question: string;
+  option_a: string;
+  option_b: string;
+  option_c: string;
+  option_d: string;
+  correct_option: number;
+  selected_option: number | null;
+  is_correct: boolean;
+}
+
+export interface LessonProgress {
+  lesson_id: string;
+  total_questions: number;
+  answered: number;
+  correct: number;
+  score_pct: number;
+  completed: boolean;
+  passed: boolean;
+  results: QuizResultItem[];
+}
+
+export interface LessonProgressSummary {
+  lesson_id: string;
+  lesson_title: string;
+  lesson_index: number;
+  payback_amount: number;
+  total_questions: number;
+  answered: number;
+  correct: number;
+  score_pct: number;
+  completed: boolean;
+  passed: boolean;
+}
+
+export interface CourseProgress {
+  course_id: string;
+  total_lessons: number;
+  completed_lessons: number;
+  passed_lessons: number;
+  total_earned: number;
+  lessons: LessonProgressSummary[];
 }
 
 // ---------------------------------------------------------------------------
@@ -184,11 +245,6 @@ export const usersApi = {
     fetch(`${API_BASE}/users/${id}`, { method: "PATCH", ...json(data) }).then(
       handleResponse<User>
     ),
-
-  delete: (id: string) =>
-    fetch(`${API_BASE}/users/${id}`, { method: "DELETE" }).then(
-      handleResponse<void>
-    ),
 };
 
 // ---------------------------------------------------------------------------
@@ -206,14 +262,13 @@ export const coursesApi = {
 
   create: (data: CourseCreate) =>
     fetch(`${API_BASE}/courses`, { method: "POST", ...json(data) }).then(
-      handleResponse<Course>
+      handleResponse<CourseWithLessonsResponse>
     ),
 
   update: (id: string, data: CourseUpdate) =>
-    fetch(`${API_BASE}/courses/${id}`, {
-      method: "PATCH",
-      ...json(data),
-    }).then(handleResponse<Course>),
+    fetch(`${API_BASE}/courses/${id}`, { method: "PUT", ...json(data) }).then(
+      handleResponse<CourseWithLessonsResponse>
+    ),
 
   delete: (id: string) =>
     fetch(`${API_BASE}/courses/${id}`, { method: "DELETE" }).then(
@@ -233,23 +288,6 @@ export const lessonsApi = {
 
   get: (id: string) =>
     fetch(`${API_BASE}/lessons/${id}`).then(handleResponse<Lesson>),
-
-  create: (courseId: string, data: LessonCreate) =>
-    fetch(`${API_BASE}/courses/${courseId}/lessons`, {
-      method: "POST",
-      ...json(data),
-    }).then(handleResponse<Lesson>),
-
-  update: (id: string, data: LessonUpdate) =>
-    fetch(`${API_BASE}/lessons/${id}`, {
-      method: "PATCH",
-      ...json(data),
-    }).then(handleResponse<Lesson>),
-
-  delete: (id: string) =>
-    fetch(`${API_BASE}/lessons/${id}`, { method: "DELETE" }).then(
-      handleResponse<void>
-    ),
 };
 
 // ---------------------------------------------------------------------------
@@ -262,8 +300,11 @@ export const quizzesApi = {
       `${API_BASE}/lessons/${lessonId}/quizzes?offset=${offset}&limit=${limit}`
     ).then(handleResponse<Quiz[]>),
 
-  get: (id: string) =>
-    fetch(`${API_BASE}/quizzes/${id}`).then(handleResponse<Quiz>),
+  generate: (lessonId: string, data?: GenerateQuizRequest) =>
+    fetch(`${API_BASE}/lessons/${lessonId}/quizzes/generate`, {
+      method: "POST",
+      ...json(data ?? {}),
+    }).then(handleResponse<Quiz[]>),
 
   create: (lessonId: string, data: QuizCreate) =>
     fetch(`${API_BASE}/lessons/${lessonId}/quizzes`, {
@@ -271,20 +312,14 @@ export const quizzesApi = {
       ...json(data),
     }).then(handleResponse<Quiz>),
 
-  generate: (lessonId: string, data?: GenerateQuizRequest) =>
-    fetch(`${API_BASE}/lessons/${lessonId}/quizzes/generate`, {
-      method: "POST",
-      ...json(data ?? {}),
-    }).then(handleResponse<Quiz[]>),
-
-  update: (id: string, data: Partial<QuizCreate>) =>
-    fetch(`${API_BASE}/quizzes/${id}`, {
-      method: "PATCH",
+  update: (quizId: string, data: QuizUpdate) =>
+    fetch(`${API_BASE}/quizzes/${quizId}`, {
+      method: "PUT",
       ...json(data),
     }).then(handleResponse<Quiz>),
 
-  delete: (id: string) =>
-    fetch(`${API_BASE}/quizzes/${id}`, { method: "DELETE" }).then(
+  delete: (quizId: string) =>
+    fetch(`${API_BASE}/quizzes/${quizId}`, { method: "DELETE" }).then(
       handleResponse<void>
     ),
 };
@@ -294,24 +329,11 @@ export const quizzesApi = {
 // ---------------------------------------------------------------------------
 
 export const quizAnswersApi = {
-  listByQuiz: (quizId: string, offset = 0, limit = 100) =>
-    fetch(
-      `${API_BASE}/quizzes/${quizId}/answers?offset=${offset}&limit=${limit}`
-    ).then(handleResponse<QuizAnswer[]>),
-
-  get: (id: string) =>
-    fetch(`${API_BASE}/quiz-answers/${id}`).then(handleResponse<QuizAnswer>),
-
   create: (quizId: string, data: QuizAnswerCreate) =>
     fetch(`${API_BASE}/quizzes/${quizId}/answers`, {
       method: "POST",
       ...json(data),
     }).then(handleResponse<QuizAnswer>),
-
-  delete: (id: string) =>
-    fetch(`${API_BASE}/quiz-answers/${id}`, { method: "DELETE" }).then(
-      handleResponse<void>
-    ),
 };
 
 // ---------------------------------------------------------------------------
@@ -328,18 +350,26 @@ export const purchasesApi = {
     );
   },
 
-  get: (id: string) =>
-    fetch(`${API_BASE}/purchases/${id}`).then(
-      handleResponse<CoursePurchase>
-    ),
-
   create: (data: CoursePurchaseCreate) =>
     fetch(`${API_BASE}/purchases`, { method: "POST", ...json(data) }).then(
       handleResponse<CoursePurchase>
     ),
+};
 
-  delete: (id: string) =>
-    fetch(`${API_BASE}/purchases/${id}`, { method: "DELETE" }).then(
-      handleResponse<void>
+// ---------------------------------------------------------------------------
+// Progress
+// ---------------------------------------------------------------------------
+
+export const progressApi = {
+  /** Get quiz results for a specific lesson for a specific user. */
+  lessonProgress: (lessonId: string, userId: string) =>
+    fetch(`${API_BASE}/lessons/${lessonId}/progress/${userId}`).then(
+      handleResponse<LessonProgress>
+    ),
+
+  /** Get overall course progress for a specific user. */
+  courseProgress: (courseId: string, userId: string) =>
+    fetch(`${API_BASE}/courses/${courseId}/progress/${userId}`).then(
+      handleResponse<CourseProgress>
     ),
 };

@@ -6,8 +6,10 @@ import {
   lessonsApi,
   quizzesApi,
   quizAnswersApi,
+  progressApi,
   type Lesson,
   type Quiz,
+  type LessonProgress,
 } from "@/lib/api";
 import { useUserStore } from "@/lib/user-store";
 import { BlurFade } from "@/components/ui/blur-fade";
@@ -31,6 +33,7 @@ import {
   XCircle,
   Trophy,
   Brain,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -55,6 +58,10 @@ export default function LessonPage({
   const [completed, setCompleted] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
 
+  // Previous progress (for revisiting)
+  const [previousProgress, setPreviousProgress] = useState<LessonProgress | null>(null);
+  const [showingPreviousResults, setShowingPreviousResults] = useState(false);
+
   useEffect(() => {
     async function load() {
       try {
@@ -62,6 +69,22 @@ export default function LessonPage({
         setLesson(l);
         const q = await quizzesApi.listByLesson(id);
         setQuizzes(q);
+
+        // Load existing progress if user is logged in
+        if (user) {
+          try {
+            const prog = await progressApi.lessonProgress(id, user.id);
+            if (prog.answered > 0) {
+              setPreviousProgress(prog);
+              // If already completed, show previous results by default
+              if (prog.completed) {
+                setShowingPreviousResults(true);
+              }
+            }
+          } catch {
+            // Not critical
+          }
+        }
       } catch {
         toast.error("Failed to load lesson.");
       } finally {
@@ -69,7 +92,7 @@ export default function LessonPage({
       }
     }
     load();
-  }, [id]);
+  }, [id, user]);
 
   function getVideoEmbedUrl(url: string): string | null {
     try {
@@ -114,12 +137,23 @@ export default function LessonPage({
       setAnswered(false);
     } else {
       setCompleted(true);
-      const pct = ((score + (selectedOption === quizzes[currentQuiz]?.correct_option ? 0 : 0)) / quizzes.length) * 100;
+      const finalScore = score;
+      const pct = (finalScore / quizzes.length) * 100;
       if (pct >= 70) {
         setShowConfetti(true);
         toast.success("Congratulations! You passed the quiz!");
       }
     }
+  }
+
+  function handleRetakeQuiz() {
+    setShowingPreviousResults(false);
+    setCurrentQuiz(0);
+    setSelectedOption(null);
+    setAnswered(false);
+    setScore(0);
+    setCompleted(false);
+    setShowConfetti(false);
   }
 
   if (loading) {
@@ -231,16 +265,128 @@ export default function LessonPage({
       {quizzes.length > 0 && (
         <BlurFade delay={0.2}>
           <Separator className="mb-8" />
-          <div className="mb-4 flex items-center justify-between">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-xl font-bold flex items-center gap-2">
               <Brain className="h-5 w-5 text-primary" />
               Quiz
             </h2>
-            <span className="text-sm text-muted-foreground">
-              {currentQuiz + 1} / {quizzes.length}
-            </span>
+            {showingPreviousResults ? (
+              <Button variant="outline" size="sm" className="gap-2" onClick={handleRetakeQuiz}>
+                <RotateCcw className="h-4 w-4" />
+                Retake Quiz
+              </Button>
+            ) : (
+              <span className="text-sm text-muted-foreground">
+                {currentQuiz + 1} / {quizzes.length}
+              </span>
+            )}
           </div>
-          <Progress value={progressPct} className="mb-6 h-2" />
+
+          {/* Previous results view */}
+          {showingPreviousResults && previousProgress ? (
+            <div className="space-y-4">
+              {/* Score summary card */}
+              <Card>
+                <CardContent className="flex flex-col items-center py-8 text-center">
+                  <Trophy className={cn(
+                    "mb-3 h-12 w-12",
+                    previousProgress.passed ? "text-primary" : "text-muted-foreground"
+                  )} />
+                  <h3 className="text-xl font-bold">
+                    {previousProgress.passed ? "Quiz Passed!" : "Quiz Completed"}
+                  </h3>
+                  <p className="mt-1 text-lg text-muted-foreground">
+                    Score:{" "}
+                    <span className={cn(
+                      "font-bold",
+                      previousProgress.passed ? "text-primary" : "text-orange-500"
+                    )}>
+                      {previousProgress.correct}/{previousProgress.total_questions}
+                    </span>{" "}
+                    ({previousProgress.score_pct}%)
+                  </p>
+                  {previousProgress.passed && lesson.payback_amount > 0 && (
+                    <Badge className="mt-3 gap-2 bg-green-500/10 text-green-600 dark:text-green-400 py-2 px-4">
+                      <Coins className="h-4 w-4" />
+                      Earned {lesson.payback_amount} PAS
+                    </Badge>
+                  )}
+                  {!previousProgress.passed && (
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      You need 70% to pass. Try again!
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Per-question results */}
+              <div className="space-y-3">
+                {previousProgress.results.map((result, i) => (
+                  <Card key={result.quiz_id} className={cn(
+                    "border-l-4",
+                    result.is_correct ? "border-l-green-500" : "border-l-red-500"
+                  )}>
+                    <CardContent className="p-4">
+                      <div className="mb-2 flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">Q{i + 1}</Badge>
+                        {result.is_correct ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-red-500" />
+                        )}
+                        <span className="text-xs text-muted-foreground">
+                          {result.is_correct ? "Correct" : "Incorrect"}
+                        </span>
+                      </div>
+                      <p className="mb-3 font-medium">{result.question}</p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {[
+                          { key: 1, text: result.option_a },
+                          { key: 2, text: result.option_b },
+                          { key: 3, text: result.option_c },
+                          { key: 4, text: result.option_d },
+                        ].map((opt) => {
+                          const isCorrect = opt.key === result.correct_option;
+                          const isSelected = opt.key === result.selected_option;
+                          return (
+                            <div
+                              key={opt.key}
+                              className={cn(
+                                "rounded-md border p-2.5 text-sm",
+                                isCorrect && "border-green-500 bg-green-500/10",
+                                isSelected && !isCorrect && "border-red-500 bg-red-500/10",
+                                !isCorrect && !isSelected && "border-border opacity-50"
+                              )}
+                            >
+                              <span className="mr-2 font-semibold">{String.fromCharCode(64 + opt.key)}.</span>
+                              {opt.text}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {/* Bottom actions */}
+              <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
+                <Link href={`/courses/${lesson.course_id}`}>
+                  <Button variant="outline" className="gap-2">
+                    <ArrowLeft className="h-4 w-4" />
+                    Back to course
+                  </Button>
+                </Link>
+                <Button className="gap-2" onClick={handleRetakeQuiz}>
+                  <RotateCcw className="h-4 w-4" />
+                  Retake Quiz
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Active quiz taking */}
+              <Progress value={progressPct} className="mb-6 h-2" />
 
           {completed ? (
             <Card>
@@ -334,6 +480,8 @@ export default function LessonPage({
               </CardContent>
             </Card>
           ) : null}
+            </>
+          )}
         </BlurFade>
       )}
     </div>

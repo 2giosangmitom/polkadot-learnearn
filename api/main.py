@@ -23,8 +23,8 @@ from src.course.router import (
     course_router,
     lesson_detail_router,
     lesson_router,
+    progress_router,
     purchase_router,
-    quiz_answer_detail_router,
     quiz_answer_router,
     quiz_detail_router,
     quiz_router,
@@ -69,7 +69,7 @@ app.include_router(lesson_detail_router)
 app.include_router(quiz_router)
 app.include_router(quiz_detail_router)
 app.include_router(quiz_answer_router)
-app.include_router(quiz_answer_detail_router)
+app.include_router(progress_router)
 app.include_router(purchase_router)
 
 

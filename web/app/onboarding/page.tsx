@@ -134,7 +134,7 @@ export default function OnboardingPage() {
                   <p className="text-xs text-muted-foreground">
                     This is permanent and cannot be changed after registration.
                   </p>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <RoleCard
                       role="Student"
                       icon={GraduationCap}

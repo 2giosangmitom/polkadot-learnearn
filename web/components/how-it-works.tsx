@@ -45,20 +45,20 @@ export function HowItWorks() {
           </BlurFade>
         </div>
 
-        <div className="grid gap-8 md:grid-cols-3">
+        <div className="grid gap-8 sm:grid-cols-2 md:grid-cols-3">
           {steps.map((item, i) => (
             <BlurFade key={item.step} delay={0.2 + i * 0.1}>
               <NeonGradientCard
                 className="h-full"
                 neonColors={{
-                  firstColor: "#e6007a",
-                  secondColor: "#552bbf",
+                  firstColor: "var(--color-pink-500)",
+                  secondColor: "var(--color-blue-400)",
                 }}
-                borderSize={1}
+                borderSize={2}
                 borderRadius={16}
               >
                 <div className="flex flex-col items-center p-6 text-center">
-                  <span className="mb-3 text-5xl font-black text-primary/20">
+                  <span className="mb-3 text-5xl font-black text-primary">
                     {item.step}
                   </span>
                   <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">

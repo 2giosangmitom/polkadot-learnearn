@@ -74,7 +74,7 @@ export function Navbar() {
         </nav>
 
         {/* Right section */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {/* Onboarding nudge */}
           {needsOnboarding && (
             <Link href="/onboarding">

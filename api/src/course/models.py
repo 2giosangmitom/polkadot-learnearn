@@ -37,8 +37,14 @@ class Course(SQLModel, table=True):
         sa_column=sa.Column(postgresql.UUID, sa.ForeignKey("user.id"), nullable=False)
     )
     author: "User" = Relationship(back_populates="courses")
-    lessons: List["Lesson"] = Relationship(back_populates="course")
-    course_purchases: List["CoursePurchase"] = Relationship(back_populates="course")
+    lessons: List["Lesson"] = Relationship(
+        back_populates="course",
+        cascade_delete=True,
+    )
+    course_purchases: List["CoursePurchase"] = Relationship(
+        back_populates="course",
+        cascade_delete=True,
+    )
 
 
 class CoursePurchase(SQLModel, table=True):
@@ -48,7 +54,11 @@ class CoursePurchase(SQLModel, table=True):
         sa_column=sa.Column(postgresql.UUID, primary_key=True, default=uuid.uuid4)
     )
     course_id: uuid.UUID = Field(
-        sa_column=sa.Column(postgresql.UUID, sa.ForeignKey("course.id"), nullable=False)
+        sa_column=sa.Column(
+            postgresql.UUID,
+            sa.ForeignKey("course.id", ondelete="CASCADE"),
+            nullable=False,
+        )
     )
     user_id: uuid.UUID = Field(
         sa_column=sa.Column(postgresql.UUID, sa.ForeignKey("user.id"), nullable=False)
@@ -69,6 +79,9 @@ class Lesson(SQLModel, table=True):
     description: str = Field(sa_column=sa.Column(sa.Text, nullable=False))
     video_url: str = Field(sa_column=sa.Column(sa.Text, nullable=False))
     payback_amount: float
+    lesson_index: int = Field(
+        sa_column=sa.Column(sa.Integer, nullable=False, default=0)
+    )
     created_at: datetime | None = Field(
         default=None,
         sa_column=sa.Column(sa.DateTime, nullable=False, server_default=sa.func.now()),
@@ -84,10 +97,17 @@ class Lesson(SQLModel, table=True):
     )
 
     course_id: uuid.UUID = Field(
-        sa_column=sa.Column(postgresql.UUID, sa.ForeignKey("course.id"), nullable=False)
+        sa_column=sa.Column(
+            postgresql.UUID,
+            sa.ForeignKey("course.id", ondelete="CASCADE"),
+            nullable=False,
+        )
     )
     course: "Course" = Relationship(back_populates="lessons")
-    quizzes: List["Quiz"] = Relationship(back_populates="lesson")
+    quizzes: List["Quiz"] = Relationship(
+        back_populates="lesson",
+        cascade_delete=True,
+    )
 
 
 class Quiz(SQLModel, table=True):
@@ -102,6 +122,7 @@ class Quiz(SQLModel, table=True):
     option_c: str = Field(sa_column=sa.Column(sa.Text, nullable=False))
     option_d: str = Field(sa_column=sa.Column(sa.Text, nullable=False))
     correct_option: int = Field(sa_column=sa.Column(sa.SmallInteger, nullable=False))
+    quiz_index: int = Field(sa_column=sa.Column(sa.Integer, nullable=False, default=0))
     created_at: datetime | None = Field(
         default=None,
         sa_column=sa.Column(sa.DateTime, nullable=False, server_default=sa.func.now()),
@@ -117,10 +138,17 @@ class Quiz(SQLModel, table=True):
     )
 
     lesson_id: uuid.UUID = Field(
-        sa_column=sa.Column(postgresql.UUID, sa.ForeignKey("lesson.id"), nullable=False)
+        sa_column=sa.Column(
+            postgresql.UUID,
+            sa.ForeignKey("lesson.id", ondelete="CASCADE"),
+            nullable=False,
+        )
     )
     lesson: "Lesson" = Relationship(back_populates="quizzes")
-    quiz_answers: List["QuizAnswer"] = Relationship(back_populates="quiz")
+    quiz_answers: List["QuizAnswer"] = Relationship(
+        back_populates="quiz",
+        cascade_delete=True,
+    )
 
 
 class QuizAnswer(SQLModel, table=True):
@@ -130,7 +158,11 @@ class QuizAnswer(SQLModel, table=True):
         sa_column=sa.Column(postgresql.UUID, primary_key=True, default=uuid.uuid4)
     )
     quiz_id: uuid.UUID = Field(
-        sa_column=sa.Column(postgresql.UUID, sa.ForeignKey("quiz.id"), nullable=False)
+        sa_column=sa.Column(
+            postgresql.UUID,
+            sa.ForeignKey("quiz.id", ondelete="CASCADE"),
+            nullable=False,
+        )
     )
     selected_option: int = Field(sa_column=sa.Column(sa.SmallInteger, nullable=False))
     user_id: uuid.UUID = Field(

@@ -7,8 +7,11 @@ import {
   coursesApi,
   lessonsApi,
   purchasesApi,
+  progressApi,
   type Course,
   type Lesson,
+  type CourseProgress,
+  type LessonProgressSummary,
 } from "@/lib/api";
 import { useUserStore } from "@/lib/user-store";
 import { useAccount, useStatus, useApi, useBalance } from "@luno-kit/react";
@@ -28,6 +31,17 @@ import { BlurFade } from "@/components/ui/blur-fade";
 import { BorderBeam } from "@/components/ui/border-beam";
 import { ShineBorder } from "@/components/ui/shine-border";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   BookOpen,
   Coins,
   Play,
@@ -36,12 +50,10 @@ import {
   Lock,
   ArrowLeft,
   ShieldCheck,
+  Trophy,
+  CircleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
-
-const RECIPIENT_WALLET =
-  process.env.NEXT_PUBLIC_RECIPIENT_WALLET ??
-  "1RPK4brFegTGGKHFpjZ7jxZ3jiwCMyihhMFQomyzHAJfcUV";
 
 export default function CourseDetailPage({
   params,
@@ -62,6 +74,7 @@ export default function CourseDetailPage({
   const [purchased, setPurchased] = useState(false);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(false);
+  const [progress, setProgress] = useState<CourseProgress | null>(null);
 
   const isConnected = status === "connected" && !!address;
 
@@ -82,6 +95,14 @@ export default function CourseDetailPage({
             user_id: user.id,
           });
           if (purchases.length > 0) setPurchased(true);
+
+          // Load progress
+          try {
+            const prog = await progressApi.courseProgress(id, user.id);
+            setProgress(prog);
+          } catch {
+            // Not critical — progress just won't show
+          }
         }
       } catch {
         toast.error("Failed to load course.");
@@ -95,22 +116,42 @@ export default function CourseDetailPage({
   async function handlePurchase() {
     if (!user || !address || !course || !api || !isApiReady) return;
 
+    if (!course.author_wallet_address) {
+      toast.error("Course author wallet address not found. Cannot purchase.");
+      return;
+    }
+
+    // Balance check
+    if (balance) {
+      const transferable = parseFloat(balance.formattedTransferable);
+      if (transferable < course.price) {
+        toast.error(
+          `Insufficient balance. You have ${balance.formattedTransferable} PAS but need ${course.price} PAS.`
+        );
+        return;
+      }
+    }
+
     setPurchasing(true);
     try {
       // Convert price to planck (1 PAS = 10^10 planck on Paseo)
       const amountInPlanck = BigInt(Math.floor(course.price * 1e10));
 
-      // Create transfer extrinsic using the dedot API
-      const tx = api.tx.balances.transferKeepAlive(RECIPIENT_WALLET, amountInPlanck);
+      toast.info("Please confirm the transaction in your wallet...");
+
+      // Send PAS directly to the course author's wallet
+      const tx = api.tx.balances.transferKeepAlive(course.author_wallet_address, amountInPlanck);
 
       // Send via lunokit
       const receipt = await sendTransactionAsync({ extrinsic: tx });
 
       if (receipt.status === "failed") {
-        toast.error("Transaction failed on-chain.");
+        toast.error("Transaction failed on-chain. Your funds were not transferred.");
         setPurchasing(false);
         return;
       }
+
+      toast.info("Transaction confirmed! Verifying with the server...");
 
       // Verify with backend
       await purchasesApi.create({
@@ -122,9 +163,13 @@ export default function CourseDetailPage({
       setPurchased(true);
       toast.success("Course purchased successfully! You can now access all lessons.");
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Purchase failed. Please try again."
-      );
+      const message =
+        err instanceof Error ? err.message : "Purchase failed. Please try again.";
+      if (message.includes("Cancelled") || message.includes("cancel")) {
+        toast.warning("Transaction cancelled.");
+      } else {
+        toast.error(message);
+      }
     } finally {
       setPurchasing(false);
     }
@@ -160,6 +205,14 @@ export default function CourseDetailPage({
 
   const isFree = course.price === 0;
   const hasAccess = purchased || isFree || user?.role === "Teacher";
+
+  // Build a map of lesson progress for quick lookup
+  const lessonProgressMap: Record<string, LessonProgressSummary> = {};
+  if (progress) {
+    for (const lp of progress.lessons) {
+      lessonProgressMap[lp.lesson_id] = lp;
+    }
+  }
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
@@ -222,23 +275,49 @@ export default function CourseDetailPage({
                   <Link href={`/lessons/${lesson.id}`}>
                     <Card className="group cursor-pointer transition-all hover:shadow-md hover:border-primary/30">
                       <CardContent className="flex items-center gap-4 p-4">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                          <Play className="h-4 w-4" />
+                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                          lessonProgressMap[lesson.id]?.passed
+                            ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                            : lessonProgressMap[lesson.id]?.completed
+                              ? "bg-orange-500/10 text-orange-600 dark:text-orange-400"
+                              : "bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground"
+                        }`}>
+                          {lessonProgressMap[lesson.id]?.passed ? (
+                            <Trophy className="h-4 w-4" />
+                          ) : lessonProgressMap[lesson.id]?.completed ? (
+                            <CircleAlert className="h-4 w-4" />
+                          ) : (
+                            <Play className="h-4 w-4" />
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="font-medium truncate">
                             {lesson.title}
                           </h3>
                           <p className="text-sm text-muted-foreground truncate">
-                            {lesson.description}
+                            {lessonProgressMap[lesson.id]?.passed
+                              ? `Passed - ${lessonProgressMap[lesson.id].correct}/${lessonProgressMap[lesson.id].total_questions} correct (${lessonProgressMap[lesson.id].score_pct}%)`
+                              : lessonProgressMap[lesson.id]?.completed
+                                ? `${lessonProgressMap[lesson.id].correct}/${lessonProgressMap[lesson.id].total_questions} correct (${lessonProgressMap[lesson.id].score_pct}%) — needs 70% to pass`
+                                : lessonProgressMap[lesson.id]?.answered > 0
+                                  ? `In progress — ${lessonProgressMap[lesson.id].answered}/${lessonProgressMap[lesson.id].total_questions} answered`
+                                  : lesson.description}
                           </p>
                         </div>
-                        {lesson.payback_amount > 0 && (
-                          <Badge variant="outline" className="shrink-0 gap-1 text-xs">
-                            <Coins className="h-3 w-3" />
-                            +{lesson.payback_amount} PAS
-                          </Badge>
-                        )}
+                        <div className="hidden items-center gap-2 sm:flex">
+                          {lessonProgressMap[lesson.id]?.passed && (
+                            <Badge variant="secondary" className="gap-1 text-xs bg-green-500/10 text-green-600 dark:text-green-400">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Passed
+                            </Badge>
+                          )}
+                          {lesson.payback_amount > 0 && (
+                            <Badge variant="outline" className="gap-1 text-xs">
+                              <Coins className="h-3 w-3" />
+                              +{lesson.payback_amount} PAS
+                            </Badge>
+                          )}
+                        </div>
                       </CardContent>
                     </Card>
                   </Link>
@@ -287,12 +366,44 @@ export default function CourseDetailPage({
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {hasAccess ? (
-                    <div className="flex items-center gap-3 rounded-lg bg-green-500/10 p-4 text-green-600 dark:text-green-400">
-                      <CheckCircle2 className="h-5 w-5 shrink-0" />
-                      <p className="text-sm font-medium">
-                        Full access to all {lessons.length} lessons
-                      </p>
-                    </div>
+                    <>
+                      <div className="flex items-center gap-3 rounded-lg bg-green-500/10 p-4 text-green-600 dark:text-green-400">
+                        <CheckCircle2 className="h-5 w-5 shrink-0" />
+                        <p className="text-sm font-medium">
+                          Full access to all {lessons.length} lessons
+                        </p>
+                      </div>
+
+                      {/* Progress summary */}
+                      {progress && progress.total_lessons > 0 && (
+                        <div className="space-y-3">
+                          <Separator />
+                          <div className="space-y-2 text-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="text-muted-foreground">Completed</span>
+                              <span className="font-medium">
+                                {progress.completed_lessons}/{progress.total_lessons} lessons
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-muted-foreground">Passed</span>
+                              <span className="font-medium text-green-600 dark:text-green-400">
+                                {progress.passed_lessons}/{progress.total_lessons} lessons
+                              </span>
+                            </div>
+                            {progress.total_earned > 0 && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-muted-foreground">Earned</span>
+                                <Badge variant="secondary" className="gap-1 bg-primary/10 text-primary">
+                                  <Coins className="h-3 w-3" />
+                                  {progress.total_earned} PAS
+                                </Badge>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <>
                       <div className="text-center">
@@ -338,27 +449,56 @@ export default function CourseDetailPage({
                           </Button>
                         </Link>
                       ) : (
-                        <Button
-                          className="w-full h-11"
-                          onClick={handlePurchase}
-                          disabled={purchasing || isSending || !isApiReady}
-                        >
-                          {purchasing || isSending ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              {txStatus === "signing"
-                                ? "Confirm in wallet..."
-                                : txStatus === "pending"
-                                  ? "Waiting for block..."
-                                  : "Processing..."}
-                            </>
-                          ) : (
-                            <>
-                              <Coins className="mr-2 h-4 w-4" />
-                              Purchase for {course.price} PAS
-                            </>
-                          )}
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              className="w-full h-11"
+                              disabled={purchasing || isSending || !isApiReady}
+                            >
+                              {purchasing || isSending ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  {txStatus === "signing"
+                                    ? "Confirm in wallet..."
+                                    : txStatus === "pending"
+                                      ? "Waiting for block..."
+                                      : "Processing..."}
+                                </>
+                              ) : (
+                                <>
+                                  <Coins className="mr-2 h-4 w-4" />
+                                  Purchase for {course.price} PAS
+                                </>
+                              )}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Confirm Purchase</AlertDialogTitle>
+                              <AlertDialogDescription className="space-y-3">
+                                <span className="block">
+                                  You are about to purchase <strong>{course.title}</strong> for{" "}
+                                  <strong>{course.price} PAS</strong>.
+                                </span>
+                                <span className="block text-xs">
+                                  This will send {course.price} PAS from your wallet to the course
+                                  author. This action is irreversible once confirmed.
+                                </span>
+                                {balance && (
+                                  <span className="block text-xs">
+                                    Your balance: {balance.formattedTransferable} PAS
+                                  </span>
+                                )}
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={handlePurchase}>
+                                Confirm Purchase
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       )}
                     </>
                   )}
