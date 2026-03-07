@@ -18,9 +18,7 @@ from src.course.schemas import (
     LessonResponse,
     QuizAnswerCreate,
     QuizAnswerResponse,
-    QuizCreate,
     QuizResponse,
-    QuizUpdate,
 )
 from src.database import get_session
 
@@ -234,72 +232,6 @@ async def generate_quizzes(
     body: GenerateQuizRequest = GenerateQuizRequest(),
 ) -> list[Quiz]:
     return await service.gen_quiz(session, lesson, num_questions=body.num_questions)
-
-
-@quiz_router.post(
-    "",
-    response_model=QuizResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create a quiz question",
-    description="Manually create a single quiz question for a lesson.",
-    responses={
-        status.HTTP_201_CREATED: {
-            "description": "Quiz question created successfully.",
-        },
-        status.HTTP_404_NOT_FOUND: {"description": "Lesson not found."},
-        status.HTTP_422_UNPROCESSABLE_ENTITY: {"description": "Validation error."},
-    },
-)
-async def create_quiz(
-    data: QuizCreate,
-    lesson: Lesson = Depends(valid_lesson_id),
-    session: AsyncSession = Depends(get_session),
-) -> Quiz:
-    return await service.create_quiz(session, lesson, data)
-
-
-# ===========================================================================
-# Quiz detail router (standalone — /quizzes/{quiz_id})
-# ===========================================================================
-quiz_detail_router = APIRouter(prefix="/quizzes", tags=["Quizzes"])
-
-
-@quiz_detail_router.put(
-    "/{quiz_id}",
-    response_model=QuizResponse,
-    summary="Update a quiz question",
-    description="Update an existing quiz question's text, options, and correct answer.",
-    responses={
-        status.HTTP_200_OK: {"description": "Quiz question updated successfully."},
-        status.HTTP_404_NOT_FOUND: {"description": "Quiz not found."},
-        status.HTTP_422_UNPROCESSABLE_ENTITY: {"description": "Validation error."},
-    },
-)
-async def update_quiz(
-    data: QuizUpdate,
-    quiz: Quiz = Depends(valid_quiz_id),
-    session: AsyncSession = Depends(get_session),
-) -> Quiz:
-    return await service.update_quiz(session, quiz, data)
-
-
-@quiz_detail_router.delete(
-    "/{quiz_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete a quiz question",
-    description="Permanently delete a quiz question and all its answers.",
-    responses={
-        status.HTTP_204_NO_CONTENT: {
-            "description": "Quiz question deleted successfully.",
-        },
-        status.HTTP_404_NOT_FOUND: {"description": "Quiz not found."},
-    },
-)
-async def delete_quiz(
-    quiz: Quiz = Depends(valid_quiz_id),
-    session: AsyncSession = Depends(get_session),
-) -> None:
-    return await service.delete_quiz(session, quiz)
 
 
 # ===========================================================================

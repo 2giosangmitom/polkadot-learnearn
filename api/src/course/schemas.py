@@ -46,6 +46,29 @@ class LessonResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Upsert: Course + Lessons in one request
 # ---------------------------------------------------------------------------
+class QuizUpsert(BaseModel):
+    """A single quiz question inside a lesson upsert request.
+
+    If ``id`` is provided, the existing quiz is updated.
+    If ``id`` is ``None``, a new quiz is created.
+    Quizzes present in the DB but *not* included in the request are deleted.
+    """
+
+    id: uuid.UUID | None = Field(
+        default=None,
+        description="Existing quiz ID (omit or null to create a new quiz).",
+    )
+    question: str = Field(..., min_length=1, description="Quiz question text.")
+    option_a: str = Field(..., min_length=1, description="Option A.")
+    option_b: str = Field(..., min_length=1, description="Option B.")
+    option_c: str = Field(..., min_length=1, description="Option C.")
+    option_d: str = Field(..., min_length=1, description="Option D.")
+    correct_option: int = Field(
+        ..., ge=1, le=4, description="Correct option number (1=A, 2=B, 3=C, 4=D)."
+    )
+    quiz_index: int = Field(..., ge=0, description="Ordering index within the lesson.")
+
+
 class LessonUpsert(BaseModel):
     """A single lesson inside a course create/update request.
 
@@ -66,6 +89,10 @@ class LessonUpsert(BaseModel):
     )
     lesson_index: int = Field(
         ..., ge=0, description="Ordering index within the course."
+    )
+    quizzes: list[QuizUpsert] = Field(
+        default_factory=list,
+        description="Full list of quiz questions for this lesson.",
     )
 
 
@@ -100,26 +127,6 @@ class CourseUpdate(BaseModel):
     )
 
 
-class CourseWithLessonsResponse(BaseModel):
-    """Course with its nested lessons returned after an upsert."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID = Field(description="Unique course identifier.")
-    title: str = Field(description="Course title.")
-    description: str = Field(description="Course description.")
-    price: float = Field(description="Course price.")
-    author_id: uuid.UUID = Field(description="Author (teacher) ID.")
-    author_wallet_address: str = Field(
-        description="Wallet address of the author (teacher) for direct payment.",
-    )
-    created_at: datetime = Field(description="Creation timestamp.")
-    updated_at: datetime = Field(description="Last update timestamp.")
-    lessons: list[LessonResponse] = Field(
-        description="Lessons belonging to this course."
-    )
-
-
 # ---------------------------------------------------------------------------
 # Quiz
 # ---------------------------------------------------------------------------
@@ -141,6 +148,49 @@ class QuizResponse(BaseModel):
     updated_at: datetime = Field(description="Last update timestamp.")
 
 
+# ---------------------------------------------------------------------------
+# Nested responses (Course + Lessons + Quizzes)
+# ---------------------------------------------------------------------------
+class LessonWithQuizzesResponse(BaseModel):
+    """Lesson with its nested quizzes returned after an upsert."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID = Field(description="Unique lesson identifier.")
+    title: str = Field(description="Lesson title.")
+    description: str = Field(description="Lesson description.")
+    video_url: str = Field(description="Video URL.")
+    payback_amount: float = Field(description="Payback amount.")
+    lesson_index: int = Field(description="Ordering index within the course.")
+    course_id: uuid.UUID = Field(description="Parent course ID.")
+    created_at: datetime = Field(description="Creation timestamp.")
+    updated_at: datetime = Field(description="Last update timestamp.")
+    quizzes: list[QuizResponse] = Field(
+        default_factory=list,
+        description="Quiz questions belonging to this lesson.",
+    )
+
+
+class CourseWithLessonsResponse(BaseModel):
+    """Course with its nested lessons (and their quizzes) returned after an upsert."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID = Field(description="Unique course identifier.")
+    title: str = Field(description="Course title.")
+    description: str = Field(description="Course description.")
+    price: float = Field(description="Course price.")
+    author_id: uuid.UUID = Field(description="Author (teacher) ID.")
+    author_wallet_address: str = Field(
+        description="Wallet address of the author (teacher) for direct payment.",
+    )
+    created_at: datetime = Field(description="Creation timestamp.")
+    updated_at: datetime = Field(description="Last update timestamp.")
+    lessons: list[LessonWithQuizzesResponse] = Field(
+        description="Lessons (with quizzes) belonging to this course."
+    )
+
+
 class GenerateQuizRequest(BaseModel):
     """Schema for requesting AI-generated quiz questions for a lesson."""
 
@@ -150,34 +200,6 @@ class GenerateQuizRequest(BaseModel):
         le=10,
         description="Number of quiz questions to generate (1-10).",
     )
-
-
-class QuizCreate(BaseModel):
-    """Schema for manually creating a quiz question for a lesson."""
-
-    question: str = Field(..., min_length=1, description="Quiz question text.")
-    option_a: str = Field(..., min_length=1, description="Option A.")
-    option_b: str = Field(..., min_length=1, description="Option B.")
-    option_c: str = Field(..., min_length=1, description="Option C.")
-    option_d: str = Field(..., min_length=1, description="Option D.")
-    correct_option: int = Field(
-        ..., ge=1, le=4, description="Correct option number (1=A, 2=B, 3=C, 4=D)."
-    )
-    quiz_index: int = Field(..., ge=0, description="Ordering index within the lesson.")
-
-
-class QuizUpdate(BaseModel):
-    """Schema for updating an existing quiz question."""
-
-    question: str = Field(..., min_length=1, description="Quiz question text.")
-    option_a: str = Field(..., min_length=1, description="Option A.")
-    option_b: str = Field(..., min_length=1, description="Option B.")
-    option_c: str = Field(..., min_length=1, description="Option C.")
-    option_d: str = Field(..., min_length=1, description="Option D.")
-    correct_option: int = Field(
-        ..., ge=1, le=4, description="Correct option number (1=A, 2=B, 3=C, 4=D)."
-    )
-    quiz_index: int = Field(..., ge=0, description="Ordering index within the lesson.")
 
 
 class GeneratedQuizItem(BaseModel):

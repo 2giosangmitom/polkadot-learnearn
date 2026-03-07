@@ -26,10 +26,10 @@ from src.course.schemas import (
     LessonProgressResponse,
     LessonProgressSummary,
     LessonResponse,
+    LessonWithQuizzesResponse,
     QuizAnswerCreate,
-    QuizCreate,
+    QuizResponse,
     QuizResultItem,
-    QuizUpdate,
 )
 
 
@@ -90,12 +90,131 @@ async def delete_course(session: AsyncSession, course: Course) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Course + Lessons: create (single transaction)
+# Helper: build CourseWithLessonsResponse from DB objects
+# ---------------------------------------------------------------------------
+async def _build_course_with_lessons_response(
+    session: AsyncSession, course: Course
+) -> CourseWithLessonsResponse:
+    """Query lessons + quizzes separately and build the nested response."""
+
+    # Query lessons
+    lessons_result = await session.exec(
+        select(Lesson)
+        .where(Lesson.course_id == course.id)  # type: ignore[arg-type]
+        .order_by(Lesson.lesson_index)  # type: ignore[arg-type]
+    )
+    lessons = list(lessons_result.all())
+
+    # Query all quizzes for these lessons in one go
+    lesson_ids = [l.id for l in lessons]
+    quizzes_by_lesson: dict[uuid.UUID, list[Quiz]] = {}
+    if lesson_ids:
+        quizzes_result = await session.exec(
+            select(Quiz)
+            .where(Quiz.lesson_id.in_(lesson_ids))  # type: ignore[union-attr]
+            .order_by(Quiz.quiz_index)  # type: ignore[arg-type]
+        )
+        for q in quizzes_result.all():
+            quizzes_by_lesson.setdefault(q.lesson_id, []).append(q)
+
+    # Build nested response
+    lesson_responses = [
+        LessonWithQuizzesResponse(
+            id=l.id,
+            title=l.title,
+            description=l.description,
+            video_url=l.video_url,
+            payback_amount=l.payback_amount,
+            lesson_index=l.lesson_index,
+            course_id=l.course_id,
+            created_at=l.created_at,  # type: ignore[arg-type]
+            updated_at=l.updated_at,  # type: ignore[arg-type]
+            quizzes=[
+                QuizResponse.model_validate(q) for q in quizzes_by_lesson.get(l.id, [])
+            ],
+        )
+        for l in lessons
+    ]
+
+    wallet_map = await _get_author_wallet_map(session, {course.author_id})
+
+    return CourseWithLessonsResponse(
+        id=course.id,
+        title=course.title,
+        description=course.description,
+        price=course.price,
+        author_id=course.author_id,
+        author_wallet_address=wallet_map.get(course.author_id),  # type: ignore[arg-type]
+        created_at=course.created_at,  # type: ignore[arg-type]
+        updated_at=course.updated_at,  # type: ignore[arg-type]
+        lessons=lesson_responses,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Helper: sync quizzes for a lesson (desired-state)
+# ---------------------------------------------------------------------------
+async def _sync_quizzes_for_lesson(
+    session: AsyncSession,
+    lesson_id: uuid.UUID,
+    quiz_upserts: list,
+) -> None:
+    """Create, update, or delete quizzes for a lesson based on desired state."""
+
+    # Get existing quizzes
+    result = await session.exec(
+        select(Quiz).where(Quiz.lesson_id == lesson_id)  # type: ignore[arg-type]
+    )
+    existing_quizzes = {q.id: q for q in result.all()}
+
+    # IDs present in the request
+    request_ids: set[uuid.UUID] = set()
+    for qd in quiz_upserts:
+        if qd.id:
+            request_ids.add(qd.id)
+
+    # Delete quizzes not in the request
+    for existing_id, existing_quiz in existing_quizzes.items():
+        if existing_id not in request_ids:
+            await session.delete(existing_quiz)
+
+    # Create or update quizzes
+    for qd in quiz_upserts:
+        if qd.id and qd.id in existing_quizzes:
+            # Update existing quiz
+            quiz = existing_quizzes[qd.id]
+            quiz.question = qd.question
+            quiz.option_a = qd.option_a
+            quiz.option_b = qd.option_b
+            quiz.option_c = qd.option_c
+            quiz.option_d = qd.option_d
+            quiz.correct_option = qd.correct_option
+            quiz.quiz_index = qd.quiz_index
+            quiz.lesson_id = lesson_id
+            session.add(quiz)
+        else:
+            # Create new quiz
+            quiz = Quiz(
+                id=uuid.uuid4(),
+                question=qd.question,
+                option_a=qd.option_a,
+                option_b=qd.option_b,
+                option_c=qd.option_c,
+                option_d=qd.option_d,
+                correct_option=qd.correct_option,
+                quiz_index=qd.quiz_index,
+                lesson_id=lesson_id,
+            )
+            session.add(quiz)
+
+
+# ---------------------------------------------------------------------------
+# Course + Lessons + Quizzes: create (single transaction)
 # ---------------------------------------------------------------------------
 async def create_course_with_lessons(
     session: AsyncSession, data: CourseCreate
 ) -> CourseWithLessonsResponse:
-    """Create a new course together with all its lessons in one transaction."""
+    """Create a new course together with all its lessons and quizzes in one transaction."""
 
     course = Course(
         id=uuid.uuid4(),
@@ -109,7 +228,7 @@ async def create_course_with_lessons(
     # Flush so that course.id is available for FK references
     await session.flush()
 
-    # Create lessons
+    # Create lessons and their quizzes
     for lesson_data in data.lessons:
         lesson = Lesson(
             id=uuid.uuid4(),
@@ -121,44 +240,39 @@ async def create_course_with_lessons(
             course_id=course.id,
         )
         session.add(lesson)
+        await session.flush()
+
+        # Create quizzes for this lesson
+        for qd in lesson_data.quizzes:
+            quiz = Quiz(
+                id=uuid.uuid4(),
+                question=qd.question,
+                option_a=qd.option_a,
+                option_b=qd.option_b,
+                option_c=qd.option_c,
+                option_d=qd.option_d,
+                correct_option=qd.correct_option,
+                quiz_index=qd.quiz_index,
+                lesson_id=lesson.id,
+            )
+            session.add(quiz)
 
     await session.commit()
     await session.refresh(course)
 
-    # Query lessons separately to avoid sync lazy-load on the relationship
-    lessons_result = await session.exec(
-        select(Lesson)
-        .where(Lesson.course_id == course.id)  # type: ignore[arg-type]
-        .order_by(Lesson.lesson_index)  # type: ignore[arg-type]
-    )
-    lessons = list(lessons_result.all())
-
-    # Resolve author wallet address
-    wallet_map = await _get_author_wallet_map(session, {course.author_id})
-
-    return CourseWithLessonsResponse(
-        id=course.id,
-        title=course.title,
-        description=course.description,
-        price=course.price,
-        author_id=course.author_id,
-        author_wallet_address=wallet_map.get(course.author_id),
-        created_at=course.created_at,  # type: ignore[arg-type]
-        updated_at=course.updated_at,  # type: ignore[arg-type]
-        lessons=[LessonResponse.model_validate(l) for l in lessons],
-    )
+    return await _build_course_with_lessons_response(session, course)
 
 
 # ---------------------------------------------------------------------------
-# Course + Lessons: update (single transaction, desired-state sync)
+# Course + Lessons + Quizzes: update (single transaction, desired-state sync)
 # ---------------------------------------------------------------------------
 async def update_course_with_lessons(
     session: AsyncSession, course: Course, data: CourseUpdate
 ) -> CourseWithLessonsResponse:
-    """Update an existing course together with all its lessons in one transaction.
+    """Update an existing course together with all its lessons and quizzes.
 
-    Lessons included in the request are created or updated.
-    Existing lessons *not* in the request are deleted (desired-state sync).
+    Lessons and quizzes are synced to desired state: items in the request
+    are created or updated, items in DB but not in the request are deleted.
     """
 
     # --- Update course fields ---
@@ -182,12 +296,12 @@ async def update_course_with_lessons(
         if lesson_data.id:
             request_ids.add(lesson_data.id)
 
-    # Delete lessons not in the request
+    # Delete lessons not in the request (cascade deletes their quizzes)
     for existing_id, existing_lesson in existing_lessons.items():
         if existing_id not in request_ids:
             await session.delete(existing_lesson)
 
-    # Create or update lessons
+    # Create or update lessons (and sync their quizzes)
     for lesson_data in data.lessons:
         if lesson_data.id and lesson_data.id in existing_lessons:
             # Update existing lesson
@@ -199,6 +313,10 @@ async def update_course_with_lessons(
             lesson.lesson_index = lesson_data.lesson_index
             lesson.course_id = course.id
             session.add(lesson)
+            await session.flush()
+
+            # Sync quizzes for this existing lesson
+            await _sync_quizzes_for_lesson(session, lesson.id, lesson_data.quizzes)
         else:
             # Create new lesson
             lesson = Lesson(
@@ -211,32 +329,27 @@ async def update_course_with_lessons(
                 course_id=course.id,
             )
             session.add(lesson)
+            await session.flush()
+
+            # Create quizzes for the new lesson
+            for qd in lesson_data.quizzes:
+                quiz = Quiz(
+                    id=uuid.uuid4(),
+                    question=qd.question,
+                    option_a=qd.option_a,
+                    option_b=qd.option_b,
+                    option_c=qd.option_c,
+                    option_d=qd.option_d,
+                    correct_option=qd.correct_option,
+                    quiz_index=qd.quiz_index,
+                    lesson_id=lesson.id,
+                )
+                session.add(quiz)
 
     await session.commit()
     await session.refresh(course)
 
-    # Query lessons separately to avoid sync lazy-load on the relationship
-    lessons_result = await session.exec(
-        select(Lesson)
-        .where(Lesson.course_id == course.id)  # type: ignore[arg-type]
-        .order_by(Lesson.lesson_index)  # type: ignore[arg-type]
-    )
-    lessons = list(lessons_result.all())
-
-    # Resolve author wallet address
-    wallet_map = await _get_author_wallet_map(session, {course.author_id})
-
-    return CourseWithLessonsResponse(
-        id=course.id,
-        title=course.title,
-        description=course.description,
-        price=course.price,
-        author_id=course.author_id,
-        author_wallet_address=wallet_map.get(course.author_id),
-        created_at=course.created_at,  # type: ignore[arg-type]
-        updated_at=course.updated_at,  # type: ignore[arg-type]
-        lessons=[LessonResponse.model_validate(l) for l in lessons],
-    )
+    return await _build_course_with_lessons_response(session, course)
 
 
 # ---------------------------------------------------------------------------
@@ -362,46 +475,6 @@ async def gen_quiz(
         await session.refresh(quiz)
 
     return quizzes
-
-
-async def create_quiz(session: AsyncSession, lesson: Lesson, data: QuizCreate) -> Quiz:
-    """Manually create a single quiz question for a lesson."""
-    quiz = Quiz(
-        id=uuid.uuid4(),
-        question=data.question,
-        option_a=data.option_a,
-        option_b=data.option_b,
-        option_c=data.option_c,
-        option_d=data.option_d,
-        correct_option=data.correct_option,
-        quiz_index=data.quiz_index,
-        lesson_id=lesson.id,
-    )
-    session.add(quiz)
-    await session.commit()
-    await session.refresh(quiz)
-    return quiz
-
-
-async def update_quiz(session: AsyncSession, quiz: Quiz, data: QuizUpdate) -> Quiz:
-    """Update an existing quiz question."""
-    quiz.question = data.question
-    quiz.option_a = data.option_a
-    quiz.option_b = data.option_b
-    quiz.option_c = data.option_c
-    quiz.option_d = data.option_d
-    quiz.correct_option = data.correct_option
-    quiz.quiz_index = data.quiz_index
-    session.add(quiz)
-    await session.commit()
-    await session.refresh(quiz)
-    return quiz
-
-
-async def delete_quiz(session: AsyncSession, quiz: Quiz) -> None:
-    """Delete a quiz question (cascade deletes its answers)."""
-    await session.delete(quiz)
-    await session.commit()
 
 
 # ---------------------------------------------------------------------------

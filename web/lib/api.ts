@@ -80,6 +80,17 @@ export interface UserUpdate {
   display_name?: string;
 }
 
+export interface QuizUpsert {
+  id?: string | null;
+  question: string;
+  option_a: string;
+  option_b: string;
+  option_c: string;
+  option_d: string;
+  correct_option: number;
+  quiz_index: number;
+}
+
 export interface LessonUpsert {
   id?: string | null;
   title: string;
@@ -87,6 +98,7 @@ export interface LessonUpsert {
   video_url: string;
   payback_amount: number;
   lesson_index: number;
+  quizzes: QuizUpsert[];
 }
 
 export interface CourseCreate {
@@ -104,8 +116,12 @@ export interface CourseUpdate {
   lessons: LessonUpsert[];
 }
 
+export interface LessonWithQuizzes extends Lesson {
+  quizzes: Quiz[];
+}
+
 export interface CourseWithLessonsResponse extends Course {
-  lessons: Lesson[];
+  lessons: LessonWithQuizzes[];
 }
 
 export interface QuizAnswerCreate {
@@ -123,26 +139,6 @@ export interface CoursePurchaseCreate {
 
 export interface GenerateQuizRequest {
   num_questions?: number;
-}
-
-export interface QuizCreate {
-  question: string;
-  option_a: string;
-  option_b: string;
-  option_c: string;
-  option_d: string;
-  correct_option: number;
-  quiz_index: number;
-}
-
-export interface QuizUpdate {
-  question: string;
-  option_a: string;
-  option_b: string;
-  option_c: string;
-  option_d: string;
-  correct_option: number;
-  quiz_index: number;
 }
 
 // Progress / Results types
@@ -306,23 +302,6 @@ export const quizzesApi = {
       method: "POST",
       ...json(data ?? {}),
     }).then(handleResponse<Quiz[]>),
-
-  create: (lessonId: string, data: QuizCreate) =>
-    fetch(`${API_BASE}/lessons/${lessonId}/quizzes`, {
-      method: "POST",
-      ...json(data),
-    }).then(handleResponse<Quiz>),
-
-  update: (quizId: string, data: QuizUpdate) =>
-    fetch(`${API_BASE}/quizzes/${quizId}`, {
-      method: "PUT",
-      ...json(data),
-    }).then(handleResponse<Quiz>),
-
-  delete: (quizId: string) =>
-    fetch(`${API_BASE}/quizzes/${quizId}`, { method: "DELETE" }).then(
-      handleResponse<void>
-    ),
 };
 
 // ---------------------------------------------------------------------------

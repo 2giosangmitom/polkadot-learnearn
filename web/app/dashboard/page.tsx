@@ -8,10 +8,9 @@ import {
   quizzesApi,
   type Course,
   type LessonUpsert,
+  type QuizUpsert,
   type CourseCreate,
   type CourseUpdate,
-  type QuizCreate,
-  type QuizUpdate,
 } from "@/lib/api";
 import { useUserStore } from "@/lib/user-store";
 import { BlurFade } from "@/components/ui/blur-fade";
@@ -158,8 +157,6 @@ export default function DashboardPage() {
   const [openQuizSections, setOpenQuizSections] = useState<Set<string>>(
     new Set()
   );
-  const [savingQuiz, setSavingQuiz] = useState<string | null>(null);
-  const [deletingQuiz, setDeletingQuiz] = useState<string | null>(null);
 
   // AI quiz generation
   const [generatingQuiz, setGeneratingQuiz] = useState<string | null>(null);
@@ -347,77 +344,46 @@ export default function DashboardPage() {
     }));
   }
 
-  // --- Quiz save (individual) ---
-  async function handleSaveQuiz(lessonKey: string, quiz: QuizFormItem) {
-    const lesson = lessonItems.find((l) => l._key === lessonKey);
-    if (!lesson?.id) {
-      toast.error("Save the course first so the lesson has an ID.");
-      return;
-    }
+  // --- Refresh form state from server response (updates IDs after save) ---
+  function _refreshFromResponse(
+    result: import("@/lib/api").CourseWithLessonsResponse
+  ) {
+    // Rebuild lessonItems and quizMap with server-assigned IDs
+    const newLessonItems: LessonFormItem[] = result.lessons
+      .sort((a, b) => a.lesson_index - b.lesson_index)
+      .map((l) => ({
+        id: l.id,
+        title: l.title,
+        description: l.description,
+        video_url: l.video_url,
+        payback_amount: l.payback_amount,
+        _key: genKey("lesson"),
+      }));
 
-    // Determine quiz_index from position in the list
-    const lessonQuizzes = quizMap[lessonKey] ?? [];
-    const quizPosition = lessonQuizzes.findIndex((q) => q._key === quiz._key);
-    const resolvedQuizIndex = quizPosition >= 0 ? quizPosition : quiz.quiz_index;
-
-    const payload: QuizCreate | QuizUpdate = {
-      question: quiz.question,
-      option_a: quiz.option_a,
-      option_b: quiz.option_b,
-      option_c: quiz.option_c,
-      option_d: quiz.option_d,
-      correct_option: quiz.correct_option,
-      quiz_index: resolvedQuizIndex,
-    };
-
-    setSavingQuiz(quiz._key);
-    try {
-      if (quiz.id) {
-        // Update existing
-        const updated = await quizzesApi.update(quiz.id, payload);
-        setQuizMap((prev) => ({
-          ...prev,
-          [lessonKey]: (prev[lessonKey] ?? []).map((q) =>
-            q._key === quiz._key ? { ...q, id: updated.id } : q
-          ),
-        }));
-        toast.success("Quiz question updated!");
-      } else {
-        // Create new
-        const created = await quizzesApi.create(lesson.id, payload);
-        setQuizMap((prev) => ({
-          ...prev,
-          [lessonKey]: (prev[lessonKey] ?? []).map((q) =>
-            q._key === quiz._key ? { ...q, id: created.id } : q
-          ),
-        }));
-        toast.success("Quiz question created!");
+    const newQuizMap: Record<string, QuizFormItem[]> = {};
+    newLessonItems.forEach((item, i) => {
+      const serverLesson = result.lessons.sort(
+        (a, b) => a.lesson_index - b.lesson_index
+      )[i];
+      if (serverLesson?.quizzes) {
+        newQuizMap[item._key] = serverLesson.quizzes
+          .sort((a, b) => a.quiz_index - b.quiz_index)
+          .map((q) => ({
+            id: q.id,
+            question: q.question,
+            option_a: q.option_a,
+            option_b: q.option_b,
+            option_c: q.option_c,
+            option_d: q.option_d,
+            correct_option: q.correct_option,
+            quiz_index: q.quiz_index,
+            _key: genKey("quiz"),
+          }));
       }
-    } catch {
-      toast.error("Failed to save quiz question.");
-    } finally {
-      setSavingQuiz(null);
-    }
-  }
+    });
 
-  // --- Quiz delete ---
-  async function handleDeleteQuiz(lessonKey: string, quiz: QuizFormItem) {
-    if (!quiz.id) {
-      // Not saved yet — just remove from state
-      removeQuizFromState(lessonKey, quiz._key);
-      return;
-    }
-
-    setDeletingQuiz(quiz._key);
-    try {
-      await quizzesApi.delete(quiz.id);
-      removeQuizFromState(lessonKey, quiz._key);
-      toast.success("Quiz question deleted.");
-    } catch {
-      toast.error("Failed to delete quiz question.");
-    } finally {
-      setDeletingQuiz(null);
-    }
+    setLessonItems(newLessonItems);
+    setQuizMap(newQuizMap);
   }
 
   // --- Save (create or update) ---
@@ -430,14 +396,28 @@ export default function DashboardPage() {
 
     setSaving(true);
     try {
-      const lessons: LessonUpsert[] = lessonItems.map((l, i) => ({
-        id: l.id,
-        title: l.title,
-        description: l.description,
-        video_url: l.video_url,
-        payback_amount: l.payback_amount,
-        lesson_index: i,
-      }));
+      const lessons: LessonUpsert[] = lessonItems.map((l, i) => {
+        const lessonQuizzes = quizMap[l._key] ?? [];
+        const quizzes: QuizUpsert[] = lessonQuizzes.map((q, qi) => ({
+          id: q.id,
+          question: q.question,
+          option_a: q.option_a,
+          option_b: q.option_b,
+          option_c: q.option_c,
+          option_d: q.option_d,
+          correct_option: q.correct_option,
+          quiz_index: qi,
+        }));
+        return {
+          id: l.id,
+          title: l.title,
+          description: l.description,
+          video_url: l.video_url,
+          payback_amount: l.payback_amount,
+          lesson_index: i,
+          quizzes,
+        };
+      });
 
       if (editingCourseId) {
         // Update existing course
@@ -447,7 +427,9 @@ export default function DashboardPage() {
           price: coursePrice,
           lessons,
         };
-        await coursesApi.update(editingCourseId, updateData);
+        const result = await coursesApi.update(editingCourseId, updateData);
+        // Refresh local state with server-assigned IDs
+        _refreshFromResponse(result);
         toast.success("Course updated!");
       } else {
         // Create new course
@@ -458,12 +440,14 @@ export default function DashboardPage() {
           author_id: user.id,
           lessons,
         };
-        await coursesApi.create(createData);
+        const result = await coursesApi.create(createData);
+        // Switch to edit mode and refresh local state with server-assigned IDs
+        setEditingCourseId(result.id);
+        _refreshFromResponse(result);
         toast.success("Course created!");
       }
 
-      // Route back to dashboard list
-      closeEditor();
+      // Stay in editor (don't go back to list) so user can continue editing
       await loadCourses();
     } catch {
       toast.error("Failed to save course.");
@@ -797,79 +781,74 @@ export default function DashboardPage() {
                         </div>
                       </div>
 
-                      {/* Quiz section (collapsible, only for saved lessons) */}
-                      {lesson.id && (
-                        <>
-                          <Separator className="my-4" />
-                          <Collapsible
-                            open={isQuizOpen}
-                            onOpenChange={() =>
-                              toggleQuizSection(lesson._key)
-                            }
-                          >
-                            <div className="flex items-center justify-between">
-                              <CollapsibleTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="gap-2 px-2"
-                                >
-                                  {isQuizOpen ? (
-                                    <ChevronDown className="h-4 w-4" />
-                                  ) : (
-                                    <ChevronRight className="h-4 w-4" />
-                                  )}
-                                  <CircleHelp className="h-4 w-4 text-primary" />
-                                  Quiz Questions
-                                  {quizCount > 0 && (
-                                    <Badge
-                                      variant="secondary"
-                                      className="ml-1"
-                                    >
-                                      {quizCount}
-                                    </Badge>
-                                  )}
-                                </Button>
-                              </CollapsibleTrigger>
+                      {/* Quiz section (collapsible, for all lessons) */}
+                      <>
+                        <Separator className="my-4" />
+                        <Collapsible
+                          open={isQuizOpen}
+                          onOpenChange={() =>
+                            toggleQuizSection(lesson._key)
+                          }
+                        >
+                          <div className="flex items-center justify-between">
+                            <CollapsibleTrigger asChild>
                               <Button
-                                variant="outline"
+                                variant="ghost"
                                 size="sm"
-                                className="gap-1.5"
-                                onClick={() => addQuiz(lesson._key)}
+                                className="gap-2 px-2"
                               >
-                                <Plus className="h-3.5 w-3.5" />
-                                Add Question
+                                {isQuizOpen ? (
+                                  <ChevronDown className="h-4 w-4" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4" />
+                                )}
+                                <CircleHelp className="h-4 w-4 text-primary" />
+                                Quiz Questions
+                                {quizCount > 0 && (
+                                  <Badge
+                                    variant="secondary"
+                                    className="ml-1"
+                                  >
+                                    {quizCount}
+                                  </Badge>
+                                )}
                               </Button>
-                            </div>
+                            </CollapsibleTrigger>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-1.5"
+                              onClick={() => addQuiz(lesson._key)}
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                              Add Question
+                            </Button>
+                          </div>
 
-                            <CollapsibleContent className="mt-3 space-y-3">
-                              {quizCount === 0 ? (
-                                <div className="rounded-lg border border-dashed p-6 text-center">
-                                  <CircleHelp className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
-                                  <p className="text-sm text-muted-foreground">
-                                    No quiz questions yet. Add one manually or
-                                    use AI to generate them.
-                                  </p>
-                                </div>
-                              ) : (
-                                lessonQuizzes.map((quiz, qi) => (
-                                  <QuizEditor
-                                    key={quiz._key}
-                                    quiz={quiz}
-                                    index={qi}
-                                    lessonKey={lesson._key}
-                                    isSaving={savingQuiz === quiz._key}
-                                    isDeleting={deletingQuiz === quiz._key}
-                                    onFieldChange={updateQuizField}
-                                    onSave={handleSaveQuiz}
-                                    onDelete={handleDeleteQuiz}
-                                  />
-                                ))
-                              )}
-                            </CollapsibleContent>
-                          </Collapsible>
-                        </>
-                      )}
+                          <CollapsibleContent className="mt-3 space-y-3">
+                            {quizCount === 0 ? (
+                              <div className="rounded-lg border border-dashed p-6 text-center">
+                                <CircleHelp className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
+                                <p className="text-sm text-muted-foreground">
+                                  No quiz questions yet. Add one manually or
+                                  use AI to generate them.
+                                </p>
+                              </div>
+                            ) : (
+                              lessonQuizzes.map((quiz, qi) => (
+                                <QuizEditor
+                                  key={quiz._key}
+                                  quiz={quiz}
+                                  index={qi}
+                                  lessonKey={lesson._key}
+                                  onFieldChange={updateQuizField}
+                                  onRemove={removeQuizFromState}
+                                />
+                              ))
+                            )}
+                          </CollapsibleContent>
+                        </Collapsible>
+                      </>
                     </CardContent>
                   </Card>
                 </BlurFade>
@@ -1017,33 +996,20 @@ function QuizEditor({
   quiz,
   index,
   lessonKey,
-  isSaving,
-  isDeleting,
   onFieldChange,
-  onSave,
-  onDelete,
+  onRemove,
 }: {
   quiz: QuizFormItem;
   index: number;
   lessonKey: string;
-  isSaving: boolean;
-  isDeleting: boolean;
   onFieldChange: (
     lessonKey: string,
     quizKey: string,
     field: keyof QuizFormItem,
     value: string | number
   ) => void;
-  onSave: (lessonKey: string, quiz: QuizFormItem) => void;
-  onDelete: (lessonKey: string, quiz: QuizFormItem) => void;
+  onRemove: (lessonKey: string, quizKey: string) => void;
 }) {
-  const isValid =
-    quiz.question.trim().length > 0 &&
-    quiz.option_a.trim().length > 0 &&
-    quiz.option_b.trim().length > 0 &&
-    quiz.option_c.trim().length > 0 &&
-    quiz.option_d.trim().length > 0;
-
   return (
     <div className="rounded-lg border bg-muted/30 p-4">
       {/* Quiz header */}
@@ -1061,35 +1027,14 @@ function QuizEditor({
             </Badge>
           )}
         </div>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            disabled={!isValid || isSaving}
-            onClick={() => onSave(lessonKey, quiz)}
-          >
-            {isSaving ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Save className="h-3.5 w-3.5" />
-            )}
-            {isSaving ? "Saving..." : "Save"}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-destructive hover:text-destructive"
-            disabled={isDeleting}
-            onClick={() => onDelete(lessonKey, quiz)}
-          >
-            {isDeleting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Trash2 className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-destructive hover:text-destructive"
+          onClick={() => onRemove(lessonKey, quiz._key)}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
       </div>
 
       {/* Question */}
