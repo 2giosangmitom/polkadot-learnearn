@@ -273,7 +273,7 @@ export default function CourseDetailPage({
             lessons.map((lesson, i) => (
               <BlurFade key={lesson.id} delay={0.2 + i * 0.05}>
                 {hasAccess ? (
-                  <Link href={`/lessons/${lesson.id}`}>
+                  <Link href={`/courses/${id}/lessons/${lesson.id}`}>
                     <Card className="group cursor-pointer transition-all hover:shadow-md hover:border-primary/30">
                       <CardContent className="flex items-center gap-4 p-4">
                         <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors ${

@@ -69,13 +69,3 @@ app.include_router(quiz_router)
 app.include_router(quiz_answer_router)
 app.include_router(progress_router)
 app.include_router(purchase_router)
-
-
-@app.get(
-    "/",
-    summary="Health check",
-    description="Simple health check endpoint that returns a greeting.",
-    tags=["Health"],
-)
-async def read_root():
-    return {"Hello": "World"}
