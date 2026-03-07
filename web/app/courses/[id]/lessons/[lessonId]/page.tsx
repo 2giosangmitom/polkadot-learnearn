@@ -263,9 +263,10 @@ export default function LessonPage({
       : 0;
 
   return (
-    <div className="flex h-full overflow-hidden bg-background">
+    <div className="relative flex h-full overflow-hidden bg-background">
       {showConfetti && (
         <Confetti
+          className="pointer-events-none absolute inset-0 z-50 h-full w-full"
           options={{
             spread: 360,
             ticks: 100,
