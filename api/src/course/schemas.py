@@ -239,6 +239,11 @@ class CoursePurchaseCreate(BaseModel):
     client before the purchase is persisted.  If the transaction cannot
     be found or the payment does not match the course price, a
     **402 Payment Required** error is returned.
+
+    When ``block_hash`` is provided the server can skip the expensive
+    backwards block search and verify the transaction directly in that
+    block.  The frontend should always try to include ``block_hash``
+    from the transaction receipt.
     """
 
     course_id: uuid.UUID = Field(..., description="ID of the purchased course.")
@@ -247,6 +252,14 @@ class CoursePurchaseCreate(BaseModel):
         ...,
         min_length=2,
         description="0x-prefixed hex transaction hash from the Polkadot network.",
+    )
+    block_hash: str | None = Field(
+        default=None,
+        description=(
+            "0x-prefixed hex block hash where the transaction was included. "
+            "When provided the server verifies directly in this block, "
+            "avoiding the finalized-block search."
+        ),
     )
 
 

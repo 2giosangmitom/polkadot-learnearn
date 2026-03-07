@@ -118,6 +118,7 @@ export interface CoursePurchaseCreate {
   course_id: string;
   user_id: string;
   transaction_hash: string;
+  block_hash?: string;
 }
 
 export interface GenerateQuizRequest {

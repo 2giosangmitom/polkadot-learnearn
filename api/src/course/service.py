@@ -465,8 +465,14 @@ async def create_purchase(
     """
     tx_hash = data.transaction_hash
 
-    # Step 1 – find the block that contains this transaction
-    block_hash = get_block_hash_from_tx(tx_hash)
+    # Step 1 – find the block that contains this transaction.
+    # If the frontend provided block_hash (from the tx receipt), use it
+    # directly — this avoids the expensive finalized-block search and
+    # eliminates the race condition where the block is included but not
+    # yet finalized.
+    block_hash: str | None = data.block_hash
+    if block_hash is None:
+        block_hash = get_block_hash_from_tx(tx_hash)
     if block_hash is None:
         raise TransactionNotFound(tx_hash)
 

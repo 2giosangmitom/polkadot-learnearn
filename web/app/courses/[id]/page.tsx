@@ -158,6 +158,7 @@ export default function CourseDetailPage({
         course_id: course.id,
         user_id: user.id,
         transaction_hash: receipt.transactionHash,
+        block_hash: receipt.blockHash,
       });
 
       setPurchased(true);
