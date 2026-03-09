@@ -8,23 +8,23 @@ const steps = [
   {
     icon: Wallet,
     step: "01",
-    title: "Connect Your Wallet",
+    title: "Create an Account",
     description:
-      "Connect a Polkadot-compatible wallet (SubWallet, Talisman, or Polkadot.js) and choose your role as a Student or Teacher.",
+      "Sign up quickly and set your role as a student or teacher to start using the platform.",
   },
   {
     icon: BookOpenCheck,
     step: "02",
-    title: "Learn & Take Quizzes",
+    title: "Learn & Practice",
     description:
-      "Browse courses, watch video lessons, and take AI-generated quizzes to test your understanding of the material.",
+      "Browse courses, watch lessons, and take quizzes to reinforce what you've learned.",
   },
   {
     icon: Trophy,
     step: "03",
-    title: "Earn Rewards",
+    title: "Track Progress",
     description:
-      "Answer quizzes correctly and earn PAS tokens. All rewards are verified on-chain and sent directly to your wallet.",
+      "Earn badges, track your course progress, and get feedback to improve your skills.",
   },
 ];
 
@@ -40,7 +40,8 @@ export function HowItWorks() {
           </BlurFade>
           <BlurFade delay={0.2}>
             <p className="mx-auto max-w-xl text-muted-foreground">
-              Three simple steps to start learning and earning on Polkadot.
+              Three simple steps to get started with hands-on courses and
+              quizzes.
             </p>
           </BlurFade>
         </div>

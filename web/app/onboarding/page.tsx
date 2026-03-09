@@ -49,11 +49,13 @@ export default function OnboardingPage() {
     try {
       const newUser = await register(address, displayName.trim(), selectedRole);
       toast.success(
-        `Welcome, ${newUser.display_name}! You're registered as a ${newUser.role}.`
+        `Welcome, ${newUser.display_name}! You're registered as a ${newUser.role}.`,
       );
       router.push(newUser.role === "Teacher" ? "/dashboard" : "/courses");
     } catch {
-      toast.error("Registration failed. The wallet might already be registered.");
+      toast.error(
+        "Registration failed. The wallet might already be registered.",
+      );
     }
   }
 
@@ -88,7 +90,8 @@ export default function OnboardingPage() {
                   Connect Your Wallet
                 </CardTitle>
                 <CardDescription>
-                  You need a Polkadot-compatible wallet to get started.
+                  Connect a wallet to save progress and (optionally) enable
+                  on-chain payments and rewards.
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex justify-center">
@@ -154,7 +157,9 @@ export default function OnboardingPage() {
 
                 {/* Wallet display */}
                 <div className="rounded-lg bg-muted/50 p-3">
-                  <p className="text-xs text-muted-foreground">Connected wallet</p>
+                  <p className="text-xs text-muted-foreground">
+                    Connected wallet
+                  </p>
                   <p className="mt-1 font-mono text-sm truncate">{address}</p>
                 </div>
 
@@ -203,13 +208,15 @@ function RoleCard({
         "flex flex-col items-center gap-3 rounded-xl border-2 p-5 text-center transition-all hover:border-primary/50",
         selected
           ? "border-primary bg-primary/5 shadow-lg shadow-primary/10"
-          : "border-border"
+          : "border-border",
       )}
     >
       <div
         className={cn(
           "flex h-12 w-12 items-center justify-center rounded-full transition-colors",
-          selected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+          selected
+            ? "bg-primary text-primary-foreground"
+            : "bg-muted text-muted-foreground",
         )}
       >
         <Icon className="h-6 w-6" />

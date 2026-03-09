@@ -17,7 +17,7 @@ interface UserState {
   register: (
     walletAddress: string,
     displayName: string,
-    role: Role
+    role: Role,
   ) => Promise<User>;
 
   /** Update display name only */
@@ -64,7 +64,8 @@ export const useUserStore = create<UserState>()(
           set({ user, isLoading: false });
           return user;
         } catch (err) {
-          const msg = err instanceof Error ? err.message : "Registration failed";
+          const msg =
+            err instanceof Error ? err.message : "Registration failed";
           set({ error: msg, isLoading: false });
           throw err;
         }
@@ -92,6 +93,6 @@ export const useUserStore = create<UserState>()(
     {
       name: "polkadot-learnearn-user",
       partialize: (state) => ({ user: state.user }),
-    }
-  )
+    },
+  ),
 );

@@ -225,22 +225,22 @@ function json(body: unknown): RequestInit {
 export const usersApi = {
   list: (offset = 0, limit = 100) =>
     fetch(`${API_BASE}/users?offset=${offset}&limit=${limit}`).then(
-      handleResponse<User[]>
+      handleResponse<User[]>,
     ),
 
   getByWallet: (wallet: string) =>
     fetch(`${API_BASE}/users/wallet/${encodeURIComponent(wallet)}`).then(
-      handleResponse<User>
+      handleResponse<User>,
     ),
 
   create: (data: UserCreate) =>
     fetch(`${API_BASE}/users`, { method: "POST", ...json(data) }).then(
-      handleResponse<User>
+      handleResponse<User>,
     ),
 
   update: (id: string, data: UserUpdate) =>
     fetch(`${API_BASE}/users/${id}`, { method: "PATCH", ...json(data) }).then(
-      handleResponse<User>
+      handleResponse<User>,
     ),
 };
 
@@ -251,7 +251,7 @@ export const usersApi = {
 export const coursesApi = {
   list: (offset = 0, limit = 100) =>
     fetch(`${API_BASE}/courses?offset=${offset}&limit=${limit}`).then(
-      handleResponse<Course[]>
+      handleResponse<Course[]>,
     ),
 
   get: (id: string) =>
@@ -259,17 +259,17 @@ export const coursesApi = {
 
   create: (data: CourseCreate) =>
     fetch(`${API_BASE}/courses`, { method: "POST", ...json(data) }).then(
-      handleResponse<CourseWithLessonsResponse>
+      handleResponse<CourseWithLessonsResponse>,
     ),
 
   update: (id: string, data: CourseUpdate) =>
     fetch(`${API_BASE}/courses/${id}`, { method: "PUT", ...json(data) }).then(
-      handleResponse<CourseWithLessonsResponse>
+      handleResponse<CourseWithLessonsResponse>,
     ),
 
   delete: (id: string) =>
     fetch(`${API_BASE}/courses/${id}`, { method: "DELETE" }).then(
-      handleResponse<void>
+      handleResponse<void>,
     ),
 };
 
@@ -280,7 +280,7 @@ export const coursesApi = {
 export const lessonsApi = {
   listByCourse: (courseId: string, offset = 0, limit = 100) =>
     fetch(
-      `${API_BASE}/courses/${courseId}/lessons?offset=${offset}&limit=${limit}`
+      `${API_BASE}/courses/${courseId}/lessons?offset=${offset}&limit=${limit}`,
     ).then(handleResponse<Lesson[]>),
 
   get: (id: string) =>
@@ -294,7 +294,7 @@ export const lessonsApi = {
 export const quizzesApi = {
   listByLesson: (lessonId: string, offset = 0, limit = 100) =>
     fetch(
-      `${API_BASE}/lessons/${lessonId}/quizzes?offset=${offset}&limit=${limit}`
+      `${API_BASE}/lessons/${lessonId}/quizzes?offset=${offset}&limit=${limit}`,
     ).then(handleResponse<Quiz[]>),
 
   generate: (lessonId: string, data?: GenerateQuizRequest) =>
@@ -326,13 +326,13 @@ export const purchasesApi = {
     if (params?.course_id) q.set("course_id", params.course_id);
     if (params?.user_id) q.set("user_id", params.user_id);
     return fetch(`${API_BASE}/purchases?${q.toString()}`).then(
-      handleResponse<CoursePurchase[]>
+      handleResponse<CoursePurchase[]>,
     );
   },
 
   create: (data: CoursePurchaseCreate) =>
     fetch(`${API_BASE}/purchases`, { method: "POST", ...json(data) }).then(
-      handleResponse<CoursePurchase>
+      handleResponse<CoursePurchase>,
     ),
 };
 
@@ -344,12 +344,12 @@ export const progressApi = {
   /** Get quiz results for a specific lesson for a specific user. */
   lessonProgress: (lessonId: string, userId: string) =>
     fetch(`${API_BASE}/lessons/${lessonId}/progress/${userId}`).then(
-      handleResponse<LessonProgress>
+      handleResponse<LessonProgress>,
     ),
 
   /** Get overall course progress for a specific user. */
   courseProgress: (courseId: string, userId: string) =>
     fetch(`${API_BASE}/courses/${courseId}/progress/${userId}`).then(
-      handleResponse<CourseProgress>
+      handleResponse<CourseProgress>,
     ),
 };

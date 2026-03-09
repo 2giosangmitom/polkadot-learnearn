@@ -15,9 +15,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Polkadot Learn & Earn",
+  title: "Learn & Earn",
   description:
-    "Learn blockchain development through interactive courses and earn crypto rewards on the Polkadot network.",
+    "Interactive, expert-led courses — build practical skills and track your progress.",
 };
 
 export default function RootLayout({

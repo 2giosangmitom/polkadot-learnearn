@@ -15,13 +15,12 @@ export function Footer() {
             </span>
           </div>
           <p className="max-w-md text-sm text-muted-foreground">
-            An open-source blockchain education platform built on Polkadot.
-            Learn, take quizzes, and earn crypto rewards.
+            A modern learning platform for building practical skills. Browse
+            expert-led courses, complete lessons and quizzes, and track your
+            progress.
           </p>
           <Separator className="my-4 max-w-xs" />
-          <p className="text-xs text-muted-foreground">
-            Built on Polkadot Paseo Testnet. Not financial advice.
-          </p>
+          <p className="text-xs text-muted-foreground">Built on Polkadot.</p>
         </div>
       </div>
     </footer>

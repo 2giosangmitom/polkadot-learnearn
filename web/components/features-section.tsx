@@ -17,37 +17,37 @@ const features = [
     icon: BookOpen,
     title: "Interactive Courses",
     description:
-      "Structured learning paths with video lessons covering blockchain fundamentals to advanced Polkadot development.",
+      "Structured learning paths with video lessons and supporting materials for practical skills.",
   },
   {
     icon: Brain,
     title: "AI-Powered Quizzes",
     description:
-      "Quizzes are auto-generated from lesson content using AI, ensuring relevant and challenging assessments.",
+      "Smart quizzes generated from lesson content to help you practice and retain knowledge.",
   },
   {
     icon: Coins,
-    title: "Earn PAS Tokens",
+    title: "Optional Rewards",
     description:
-      "Complete quizzes successfully and earn PAS token rewards sent directly to your connected wallet.",
+      "Small platform credits for completing quizzes and milestones. Focus stays on learning first.",
   },
   {
     icon: ShieldCheck,
     title: "On-Chain Verification",
     description:
-      "Every payment and reward is verified on the Polkadot Paseo testnet. Full transparency, zero trust required.",
+      "Transparent verification for transactions used only for optional payments and rewards.",
   },
   {
     icon: Video,
     title: "Video-First Learning",
     description:
-      "Watch curated YouTube lessons. Subtitles are extracted automatically to power smart quiz generation.",
+      "Watch curated lessons with subtitles and supporting resources to reinforce learning.",
   },
   {
     icon: Sparkles,
     title: "Teacher Tools",
     description:
-      "Create courses, add lessons, set prices, and let AI generate quizzes. Everything you need to teach web3.",
+      "Create courses, add lessons and quizzes, publish your content and reach learners.",
   },
 ];
 
@@ -66,8 +66,8 @@ export function FeaturesSection() {
           </BlurFade>
           <BlurFade delay={0.2}>
             <p className="mx-auto max-w-2xl text-muted-foreground">
-              A complete platform for blockchain education with real crypto
-              incentives. Built on Polkadot.
+              A complete platform for practical, video-first learning with
+              optional on-chain verification and rewards.
             </p>
           </BlurFade>
         </div>

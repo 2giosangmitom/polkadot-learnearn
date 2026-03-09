@@ -1,23 +1,23 @@
-"use client"
+"use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   animate,
   motion,
   useMotionTemplate,
   useMotionValue,
-} from "motion/react"
+} from "motion/react";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
 interface MagicCardProps {
-  children?: React.ReactNode
-  className?: string
-  gradientSize?: number
-  gradientColor?: string
-  gradientOpacity?: number
-  gradientFrom?: string
-  gradientTo?: string
+  children?: React.ReactNode;
+  className?: string;
+  gradientSize?: number;
+  gradientColor?: string;
+  gradientOpacity?: number;
+  gradientFrom?: string;
+  gradientTo?: string;
 }
 
 export function MagicCard({
@@ -29,11 +29,11 @@ export function MagicCard({
   gradientFrom = "#9E7AFF",
   gradientTo = "#FE8BBB",
 }: MagicCardProps) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [mounted, setMounted] = useState(false)
+  const ref = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
 
-  const mouseX = useMotionValue(-gradientSize)
-  const mouseY = useMotionValue(-gradientSize)
+  const mouseX = useMotionValue(-gradientSize);
+  const mouseY = useMotionValue(-gradientSize);
 
   const borderBackground = useMotionTemplate`
     linear-gradient(var(--color-background) 0 0) padding-box,
@@ -42,93 +42,93 @@ export function MagicCard({
       ${gradientTo},
       var(--color-border) 100%
     ) border-box
-  `
+  `;
 
   const hoverBackground = useMotionTemplate`
     radial-gradient(${gradientSize}px circle at ${mouseX}px ${mouseY}px, ${gradientColor}, transparent 100%)
-  `
+  `;
 
   useEffect(() => {
-    setMounted(true)
-  }, [])
+    setMounted(true);
+  }, []);
 
   const reset = useCallback(() => {
-    if (!ref.current) return
-    const rect = ref.current.getBoundingClientRect()
-    const x = mouseX.get()
-    const y = mouseY.get()
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const x = mouseX.get();
+    const y = mouseY.get();
 
     const distances = {
       left: x,
       right: rect.width - x,
       top: y,
       bottom: rect.height - y,
-    }
+    };
 
     const closestEdge = Object.entries(distances).reduce(
       (closest, [edge, distance]) =>
         distance < closest.distance ? { edge, distance } : closest,
-      { edge: "left", distance: distances.left }
-    ).edge
+      { edge: "left", distance: distances.left },
+    ).edge;
 
     switch (closestEdge) {
       case "left":
-        return animate(mouseX, -gradientSize)
+        return animate(mouseX, -gradientSize);
       case "right":
-        return animate(mouseX, rect.width + gradientSize)
+        return animate(mouseX, rect.width + gradientSize);
       case "top":
-        return animate(mouseY, -gradientSize)
+        return animate(mouseY, -gradientSize);
       case "bottom":
-        return animate(mouseY, rect.height + gradientSize)
+        return animate(mouseY, rect.height + gradientSize);
       default:
-        animate(mouseX, -gradientSize)
-        animate(mouseY, -gradientSize)
+        animate(mouseX, -gradientSize);
+        animate(mouseY, -gradientSize);
     }
-  }, [gradientSize, mouseX, mouseY])
+  }, [gradientSize, mouseX, mouseY]);
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      const rect = e.currentTarget.getBoundingClientRect()
-      mouseX.set(e.clientX - rect.left)
-      mouseY.set(e.clientY - rect.top)
+      const rect = e.currentTarget.getBoundingClientRect();
+      mouseX.set(e.clientX - rect.left);
+      mouseY.set(e.clientY - rect.top);
     },
-    [mouseX, mouseY]
-  )
+    [mouseX, mouseY],
+  );
 
   useEffect(() => {
-    reset()
-  }, [reset])
+    reset();
+  }, [reset]);
 
   useEffect(() => {
     const handleGlobalPointerOut = (e: PointerEvent) => {
       if (!e.relatedTarget) {
-        reset()
+        reset();
       }
-    }
+    };
 
     const handleVisibility = () => {
       if (document.visibilityState !== "visible") {
-        reset()
+        reset();
       }
-    }
+    };
 
-    window.addEventListener("pointerout", handleGlobalPointerOut)
-    window.addEventListener("blur", reset)
-    document.addEventListener("visibilitychange", handleVisibility)
+    window.addEventListener("pointerout", handleGlobalPointerOut);
+    window.addEventListener("blur", reset);
+    document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
-      window.removeEventListener("pointerout", handleGlobalPointerOut)
-      window.removeEventListener("blur", reset)
-      document.removeEventListener("visibilitychange", handleVisibility)
-    }
-  }, [reset])
+      window.removeEventListener("pointerout", handleGlobalPointerOut);
+      window.removeEventListener("blur", reset);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [reset]);
 
   return (
     <div
       ref={ref}
       className={cn(
         "group relative overflow-hidden rounded-[inherit] border border-transparent",
-        className
+        className,
       )}
       onPointerMove={handlePointerMove}
       onPointerLeave={reset}
@@ -153,5 +153,5 @@ export function MagicCard({
       )}
       <div className="relative">{children}</div>
     </div>
-  )
+  );
 }

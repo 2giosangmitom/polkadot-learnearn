@@ -63,7 +63,7 @@ export function Navbar() {
                 size="sm"
                 className={cn(
                   "gap-2",
-                  pathname === link.href && "bg-secondary font-medium"
+                  pathname === link.href && "bg-secondary font-medium",
                 )}
               >
                 <link.icon className="h-4 w-4" />

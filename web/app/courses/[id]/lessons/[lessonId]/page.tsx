@@ -20,12 +20,7 @@ import {
 import { useUserStore } from "@/lib/user-store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
@@ -65,7 +60,9 @@ export default function LessonPage({
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
-  const [courseProgress, setCourseProgress] = useState<CourseProgress | null>(null);
+  const [courseProgress, setCourseProgress] = useState<CourseProgress | null>(
+    null,
+  );
 
   // Sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -285,7 +282,7 @@ export default function LessonPage({
           "shrink-0 border-r border-border/50 bg-card flex flex-col transition-all duration-300",
           sidebarOpen ? "w-80" : "w-0",
           "max-lg:fixed max-lg:inset-y-16 max-lg:left-0 max-lg:z-40",
-          !sidebarOpen && "max-lg:w-0 lg:w-0"
+          !sidebarOpen && "max-lg:w-0 lg:w-0",
         )}
       >
         {sidebarOpen && (
@@ -350,7 +347,7 @@ export default function LessonPage({
                             "flex items-start gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
                             isActive
                               ? "bg-primary/10 text-foreground"
-                              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                              : "text-muted-foreground hover:bg-muted hover:text-foreground",
                           )}
                         >
                           {/* Status indicator */}
@@ -363,7 +360,7 @@ export default function LessonPage({
                                   ? "bg-orange-500/15 text-orange-600 dark:text-orange-400"
                                   : isActive
                                     ? "bg-primary text-primary-foreground"
-                                    : "bg-muted text-muted-foreground"
+                                    : "bg-muted text-muted-foreground",
                             )}
                           >
                             {passed ? (
@@ -381,7 +378,7 @@ export default function LessonPage({
                             <p
                               className={cn(
                                 "leading-snug line-clamp-2",
-                                isActive && "font-medium"
+                                isActive && "font-medium",
                               )}
                             >
                               {l.title}
@@ -390,7 +387,7 @@ export default function LessonPage({
                               {l.payback_amount > 0 && (
                                 <span className="flex items-center gap-1 text-xs text-muted-foreground">
                                   <Coins className="h-3 w-3" />
-                                  {l.payback_amount} PAS
+                                  {l.payback_amount} tokens
                                 </span>
                               )}
                               {passed && (
@@ -443,9 +440,7 @@ export default function LessonPage({
               Lesson {currentIndex + 1} of {lessons.length}
             </span>
             <Separator orientation="vertical" className="h-4" />
-            <span className="text-sm font-medium truncate">
-              {lesson.title}
-            </span>
+            <span className="text-sm font-medium truncate">{lesson.title}</span>
           </div>
           {/* Prev / Next navigation */}
           <div className="flex items-center gap-1 shrink-0">
@@ -455,9 +450,7 @@ export default function LessonPage({
               disabled={!prevLesson}
               onClick={() =>
                 prevLesson &&
-                router.push(
-                  `/courses/${courseId}/lessons/${prevLesson.id}`
-                )
+                router.push(`/courses/${courseId}/lessons/${prevLesson.id}`)
               }
               className="gap-1.5"
             >
@@ -470,9 +463,7 @@ export default function LessonPage({
               disabled={!nextLesson}
               onClick={() =>
                 nextLesson &&
-                router.push(
-                  `/courses/${courseId}/lessons/${nextLesson.id}`
-                )
+                router.push(`/courses/${courseId}/lessons/${nextLesson.id}`)
               }
               className="gap-1.5"
             >
@@ -521,7 +512,7 @@ export default function LessonPage({
                     className="gap-1.5 bg-primary/10 text-primary"
                   >
                     <Coins className="h-3 w-3" />
-                    Earn {lesson.payback_amount} PAS
+                    Earn {lesson.payback_amount} tokens
                   </Badge>
                 )}
                 {quizzes.length > 0 && (
@@ -577,7 +568,7 @@ export default function LessonPage({
                             "mb-3 h-12 w-12",
                             previousProgress.passed
                               ? "text-primary"
-                              : "text-muted-foreground"
+                              : "text-muted-foreground",
                           )}
                         />
                         <h3 className="text-xl font-bold">
@@ -592,7 +583,7 @@ export default function LessonPage({
                               "font-bold",
                               previousProgress.passed
                                 ? "text-primary"
-                                : "text-orange-500"
+                                : "text-orange-500",
                             )}
                           >
                             {previousProgress.correct}/
@@ -604,7 +595,7 @@ export default function LessonPage({
                           lesson.payback_amount > 0 && (
                             <Badge className="mt-3 gap-2 bg-green-500/10 text-green-600 dark:text-green-400 py-2 px-4">
                               <Coins className="h-4 w-4" />
-                              Earned {lesson.payback_amount} PAS
+                              Earned {lesson.payback_amount} tokens
                             </Badge>
                           )}
                         {!previousProgress.passed && (
@@ -624,7 +615,7 @@ export default function LessonPage({
                             "border-l-4",
                             result.is_correct
                               ? "border-l-green-500"
-                              : "border-l-red-500"
+                              : "border-l-red-500",
                           )}
                         >
                           <CardContent className="p-4">
@@ -667,7 +658,7 @@ export default function LessonPage({
                                         "border-red-500 bg-red-500/10",
                                       !isCorrect &&
                                         !isSelected &&
-                                        "border-border opacity-50"
+                                        "border-border opacity-50",
                                     )}
                                   >
                                     <span className="mr-2 font-semibold">
@@ -717,9 +708,7 @@ export default function LessonPage({
                       <Card>
                         <CardContent className="flex flex-col items-center py-10 text-center">
                           <Trophy className="mb-4 h-16 w-16 text-primary" />
-                          <h3 className="text-2xl font-bold">
-                            Quiz Complete!
-                          </h3>
+                          <h3 className="text-2xl font-bold">Quiz Complete!</h3>
                           <p className="mt-2 text-lg text-muted-foreground">
                             You scored{" "}
                             <span className="font-bold text-primary">
@@ -731,7 +720,7 @@ export default function LessonPage({
                             lesson.payback_amount > 0 && (
                               <Badge className="mt-4 gap-2 bg-green-500/10 text-green-600 dark:text-green-400 py-2 px-4">
                                 <Coins className="h-4 w-4" />
-                                You earned {lesson.payback_amount} PAS!
+                                You earned {lesson.payback_amount} tokens!
                               </Badge>
                             )}
                           <div className="mt-6 flex gap-3">
@@ -796,7 +785,7 @@ export default function LessonPage({
                                   answered &&
                                     !isSelected &&
                                     !isCorrect &&
-                                    "border-border opacity-50"
+                                    "border-border opacity-50",
                                 )}
                               >
                                 <div className="flex items-center gap-3">
@@ -843,9 +832,7 @@ export default function LessonPage({
             {quizzes.length === 0 && (
               <div className="mt-8 flex items-center justify-between">
                 {prevLesson ? (
-                  <Link
-                    href={`/courses/${courseId}/lessons/${prevLesson.id}`}
-                  >
+                  <Link href={`/courses/${courseId}/lessons/${prevLesson.id}`}>
                     <Button variant="outline" className="gap-2">
                       <ChevronLeft className="h-4 w-4" />
                       Previous Lesson
@@ -855,9 +842,7 @@ export default function LessonPage({
                   <div />
                 )}
                 {nextLesson ? (
-                  <Link
-                    href={`/courses/${courseId}/lessons/${nextLesson.id}`}
-                  >
+                  <Link href={`/courses/${courseId}/lessons/${nextLesson.id}`}>
                     <Button className="gap-2">
                       Next Lesson
                       <ChevronRight className="h-4 w-4" />

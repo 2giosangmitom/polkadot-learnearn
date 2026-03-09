@@ -36,7 +36,7 @@ export default function CoursesPage() {
             } catch {
               // ignore
             }
-          })
+          }),
         );
         setAuthors(authorMap);
       } catch {
@@ -61,8 +61,8 @@ export default function CoursesPage() {
         </BlurFade>
         <BlurFade delay={0.2}>
           <p className="mt-3 text-muted-foreground max-w-xl">
-            Browse blockchain courses created by expert teachers. Purchase with
-            PAS tokens and start learning.
+            Browse expert-created courses. Purchase access with platform tokens
+            and start learning.
           </p>
         </BlurFade>
         {!loading && (
@@ -111,7 +111,7 @@ export default function CoursesPage() {
                         className="gap-1.5 bg-primary/10 text-primary hover:bg-primary/15"
                       >
                         <Coins className="h-3 w-3" />
-                        {course.price} PAS
+                        {course.price} tokens
                       </Badge>
                       <span className="text-xs text-muted-foreground">
                         {new Date(course.created_at).toLocaleDateString()}

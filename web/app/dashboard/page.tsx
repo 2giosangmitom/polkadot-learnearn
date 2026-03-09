@@ -155,7 +155,7 @@ export default function DashboardPage() {
   // --- Quiz state: keyed by lesson _key ---
   const [quizMap, setQuizMap] = useState<Record<string, QuizFormItem[]>>({});
   const [openQuizSections, setOpenQuizSections] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
 
   // AI quiz generation
@@ -212,7 +212,7 @@ export default function DashboardPage() {
     try {
       const lessons = await lessonsApi.listByCourse(course.id);
       const sortedLessons = lessons.sort(
-        (a, b) => a.lesson_index - b.lesson_index
+        (a, b) => a.lesson_index - b.lesson_index,
       );
       const items: LessonFormItem[] = sortedLessons.map((l) => ({
         id: l.id,
@@ -231,7 +231,7 @@ export default function DashboardPage() {
           try {
             const quizzes = await quizzesApi.listByLesson(item.id);
             const sortedQuizzes = quizzes.sort(
-              (a, b) => a.quiz_index - b.quiz_index
+              (a, b) => a.quiz_index - b.quiz_index,
             );
             newQuizMap[item._key] = sortedQuizzes.map((q) => ({
               id: q.id,
@@ -281,10 +281,10 @@ export default function DashboardPage() {
   function updateLesson(
     key: string,
     field: keyof LessonFormItem,
-    value: string | number
+    value: string | number,
   ) {
     setLessonItems((prev) =>
-      prev.map((l) => (l._key === key ? { ...l, [field]: value } : l))
+      prev.map((l) => (l._key === key ? { ...l, [field]: value } : l)),
     );
   }
 
@@ -334,19 +334,19 @@ export default function DashboardPage() {
     lessonKey: string,
     quizKey: string,
     field: keyof QuizFormItem,
-    value: string | number
+    value: string | number,
   ) {
     setQuizMap((prev) => ({
       ...prev,
       [lessonKey]: (prev[lessonKey] ?? []).map((q) =>
-        q._key === quizKey ? { ...q, [field]: value } : q
+        q._key === quizKey ? { ...q, [field]: value } : q,
       ),
     }));
   }
 
   // --- Refresh form state from server response (updates IDs after save) ---
   function _refreshFromResponse(
-    result: import("@/lib/api").CourseWithLessonsResponse
+    result: import("@/lib/api").CourseWithLessonsResponse,
   ) {
     // Rebuild lessonItems and quizMap with server-assigned IDs
     const newLessonItems: LessonFormItem[] = result.lessons
@@ -363,7 +363,7 @@ export default function DashboardPage() {
     const newQuizMap: Record<string, QuizFormItem[]> = {};
     newLessonItems.forEach((item, i) => {
       const serverLesson = result.lessons.sort(
-        (a, b) => a.lesson_index - b.lesson_index
+        (a, b) => a.lesson_index - b.lesson_index,
       )[i];
       if (serverLesson?.quizzes) {
         newQuizMap[item._key] = serverLesson.quizzes
@@ -516,7 +516,7 @@ export default function DashboardPage() {
         (l) =>
           l.title.trim().length > 0 &&
           l.description.trim().length > 0 &&
-          l.video_url.trim().length > 0
+          l.video_url.trim().length > 0,
       );
 
     return (
@@ -576,7 +576,7 @@ export default function DashboardPage() {
                 <Label htmlFor="course-title">Title</Label>
                 <Input
                   id="course-title"
-                  placeholder="Introduction to Polkadot"
+                  placeholder="Introduction to Web Development"
                   value={courseTitle}
                   onChange={(e) => setCourseTitle(e.target.value)}
                 />
@@ -592,7 +592,7 @@ export default function DashboardPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="course-price">Price (PAS)</Label>
+                <Label htmlFor="course-price">Price (tokens)</Label>
                 <Input
                   id="course-price"
                   type="number"
@@ -726,11 +726,7 @@ export default function DashboardPage() {
                             placeholder="Lesson title"
                             value={lesson.title}
                             onChange={(e) =>
-                              updateLesson(
-                                lesson._key,
-                                "title",
-                                e.target.value
-                              )
+                              updateLesson(lesson._key, "title", e.target.value)
                             }
                           />
                         </div>
@@ -743,7 +739,7 @@ export default function DashboardPage() {
                               updateLesson(
                                 lesson._key,
                                 "video_url",
-                                e.target.value
+                                e.target.value,
                               )
                             }
                           />
@@ -757,14 +753,14 @@ export default function DashboardPage() {
                               updateLesson(
                                 lesson._key,
                                 "description",
-                                e.target.value
+                                e.target.value,
                               )
                             }
                             rows={2}
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label>Reward Amount (PAS)</Label>
+                          <Label>Reward Amount (tokens)</Label>
                           <Input
                             type="number"
                             min={0}
@@ -774,7 +770,7 @@ export default function DashboardPage() {
                               updateLesson(
                                 lesson._key,
                                 "payback_amount",
-                                parseFloat(e.target.value) || 0
+                                parseFloat(e.target.value) || 0,
                               )
                             }
                           />
@@ -786,9 +782,7 @@ export default function DashboardPage() {
                         <Separator className="my-4" />
                         <Collapsible
                           open={isQuizOpen}
-                          onOpenChange={() =>
-                            toggleQuizSection(lesson._key)
-                          }
+                          onOpenChange={() => toggleQuizSection(lesson._key)}
                         >
                           <div className="flex items-center justify-between">
                             <CollapsibleTrigger asChild>
@@ -805,10 +799,7 @@ export default function DashboardPage() {
                                 <CircleHelp className="h-4 w-4 text-primary" />
                                 Quiz Questions
                                 {quizCount > 0 && (
-                                  <Badge
-                                    variant="secondary"
-                                    className="ml-1"
-                                  >
+                                  <Badge variant="secondary" className="ml-1">
                                     {quizCount}
                                   </Badge>
                                 )}
@@ -830,8 +821,8 @@ export default function DashboardPage() {
                               <div className="rounded-lg border border-dashed p-6 text-center">
                                 <CircleHelp className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
                                 <p className="text-sm text-muted-foreground">
-                                  No quiz questions yet. Add one manually or
-                                  use AI to generate them.
+                                  No quiz questions yet. Add one manually or use
+                                  AI to generate them.
                                 </p>
                               </div>
                             ) : (
@@ -953,7 +944,7 @@ export default function DashboardPage() {
                       className="gap-1.5 bg-primary/10 text-primary"
                     >
                       <Coins className="h-3 w-3" />
-                      {course.price} PAS
+                      {course.price} tokens
                     </Badge>
                     <Button
                       variant="ghost"
@@ -1006,7 +997,7 @@ function QuizEditor({
     lessonKey: string,
     quizKey: string,
     field: keyof QuizFormItem,
-    value: string | number
+    value: string | number,
   ) => void;
   onRemove: (lessonKey: string, quizKey: string) => void;
 }) {
@@ -1054,9 +1045,7 @@ function QuizEditor({
         {(["option_a", "option_b", "option_c", "option_d"] as const).map(
           (field, i) => (
             <div key={field} className="space-y-1">
-              <Label className="text-xs">
-                Option {OPTION_LABELS[i + 1]}
-              </Label>
+              <Label className="text-xs">Option {OPTION_LABELS[i + 1]}</Label>
               <Input
                 placeholder={`Option ${OPTION_LABELS[i + 1]}`}
                 value={quiz[field]}
@@ -1065,7 +1054,7 @@ function QuizEditor({
                 }
               />
             </div>
-          )
+          ),
         )}
       </div>
 
@@ -1079,7 +1068,7 @@ function QuizEditor({
               lessonKey,
               quiz._key,
               "correct_option",
-              parseInt(val, 10)
+              parseInt(val, 10),
             )
           }
         >

@@ -32,29 +32,23 @@ export function HeroSection() {
       <div className="pointer-events-none absolute top-1/2 left-1/2 -z-10 h-125 w-125 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-[120px]" />
 
       <div className="mx-auto max-w-4xl text-center">
-        <div className="mb-6 inline-flex items-center rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-sm text-primary">
-          <span className="mr-2 h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-          Powered by Polkadot Paseo Testnet
-        </div>
-
         <h1 className="mb-4 text-4xl font-extrabold tracking-tight sm:text-5xl md:text-6xl lg:text-7xl">
           <TextAnimate animation="blurInUp" by="word" delay={0.1}>
-            Learn Blockchain.
+            Learn something new.
           </TextAnimate>
         </h1>
 
         <div className="mb-6 flex flex-wrap items-center justify-center gap-3 text-3xl font-extrabold tracking-tight sm:text-4xl md:text-6xl lg:text-7xl">
-          <span className="text-primary">Earn</span>
+          <span className="text-primary">Grow</span>
           <WordRotate
             className="text-primary"
-            words={["Crypto.", "Knowledge.", "Rewards.", "Skills."]}
+            words={["Skills.", "Knowledge.", "Confidence."]}
           />
         </div>
 
         <p className="mx-auto mb-10 max-w-2xl text-lg text-muted-foreground sm:text-xl">
-          Master blockchain development through interactive courses with
-          AI-generated quizzes. Complete lessons and earn PAS token rewards
-          directly to your wallet.
+          Discover expert-led courses and build practical skills. Learn at your
+          own pace, take quizzes to check your knowledge, and track progress.
         </p>
 
         <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
@@ -94,7 +88,7 @@ export function HeroSection() {
               100%
             </div>
             <div className="text-sm text-muted-foreground">
-              On-Chain Verified
+              Verified Progress
             </div>
           </div>
           <div>
@@ -105,9 +99,11 @@ export function HeroSection() {
           </div>
           <div>
             <div className="text-2xl font-bold text-primary sm:text-3xl">
-              PAS
+              Tokens
             </div>
-            <div className="text-sm text-muted-foreground">Token Rewards</div>
+            <div className="text-sm text-muted-foreground">
+              Optional Rewards
+            </div>
           </div>
         </div>
       </div>

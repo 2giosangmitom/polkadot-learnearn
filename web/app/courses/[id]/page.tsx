@@ -67,7 +67,11 @@ export default function CourseDetailPage({
   const { api, isApiReady } = useApi();
   const { data: balance } = useBalance({ address });
   const user = useUserStore((s) => s.user);
-  const { sendTransactionAsync, isPending: isSending, txStatus } = useSendTransaction({ waitFor: "inBlock" });
+  const {
+    sendTransactionAsync,
+    isPending: isSending,
+    txStatus,
+  } = useSendTransaction({ waitFor: "inBlock" });
 
   const [course, setCourse] = useState<Course | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
@@ -126,7 +130,7 @@ export default function CourseDetailPage({
       const transferable = parseFloat(balance.formattedTransferable);
       if (transferable < course.price) {
         toast.error(
-          `Insufficient balance. You have ${balance.formattedTransferable} PAS but need ${course.price} PAS.`
+          `Insufficient balance. You have ${balance.formattedTransferable} tokens but need ${course.price} tokens.`,
         );
         return;
       }
@@ -134,19 +138,24 @@ export default function CourseDetailPage({
 
     setPurchasing(true);
     try {
-      // Convert price to planck (1 PAS = 10^10 planck on Paseo)
+      // Convert price to planck (1 token = 10^10 planck on Paseo)
       const amountInPlanck = BigInt(Math.floor(course.price * 1e10));
 
       toast.info("Please confirm the transaction in your wallet...");
 
-      // Send PAS directly to the course author's wallet
-      const tx = api.tx.balances.transferKeepAlive(course.author_wallet_address, amountInPlanck);
+      // Send tokens directly to the course author's wallet
+      const tx = api.tx.balances.transferKeepAlive(
+        course.author_wallet_address,
+        amountInPlanck,
+      );
 
       // Send via lunokit
       const receipt = await sendTransactionAsync({ extrinsic: tx });
 
       if (receipt.status === "failed") {
-        toast.error("Transaction failed on-chain. Your funds were not transferred.");
+        toast.error(
+          "Transaction failed on-chain. Your funds were not transferred.",
+        );
         setPurchasing(false);
         return;
       }
@@ -162,10 +171,14 @@ export default function CourseDetailPage({
       });
 
       setPurchased(true);
-      toast.success("Course purchased successfully! You can now access all lessons.");
+      toast.success(
+        "Course purchased successfully! You can now access all lessons.",
+      );
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Purchase failed. Please try again.";
+        err instanceof Error
+          ? err.message
+          : "Purchase failed. Please try again.";
       if (message.includes("Cancelled") || message.includes("cancel")) {
         toast.warning("Transaction cancelled.");
       } else {
@@ -237,10 +250,13 @@ export default function CourseDetailPage({
               className="gap-1.5 bg-primary/10 text-primary"
             >
               <Coins className="h-3 w-3" />
-              {isFree ? "Free" : `${course.price} PAS`}
+              {isFree ? "Free" : `${course.price} tokens`}
             </Badge>
             {purchased && (
-              <Badge variant="secondary" className="gap-1.5 text-green-600 bg-green-500/10">
+              <Badge
+                variant="secondary"
+                className="gap-1.5 text-green-600 bg-green-500/10"
+              >
                 <CheckCircle2 className="h-3 w-3" />
                 Purchased
               </Badge>
@@ -276,13 +292,15 @@ export default function CourseDetailPage({
                   <Link href={`/courses/${id}/lessons/${lesson.id}`}>
                     <Card className="group cursor-pointer transition-all hover:shadow-md hover:border-primary/30">
                       <CardContent className="flex items-center gap-4 p-4">
-                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors ${
-                          lessonProgressMap[lesson.id]?.passed
-                            ? "bg-green-500/10 text-green-600 dark:text-green-400"
-                            : lessonProgressMap[lesson.id]?.completed
-                              ? "bg-orange-500/10 text-orange-600 dark:text-orange-400"
-                              : "bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground"
-                        }`}>
+                        <div
+                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                            lessonProgressMap[lesson.id]?.passed
+                              ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                              : lessonProgressMap[lesson.id]?.completed
+                                ? "bg-orange-500/10 text-orange-600 dark:text-orange-400"
+                                : "bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground"
+                          }`}
+                        >
                           {lessonProgressMap[lesson.id]?.passed ? (
                             <Trophy className="h-4 w-4" />
                           ) : lessonProgressMap[lesson.id]?.completed ? (
@@ -307,15 +325,18 @@ export default function CourseDetailPage({
                         </div>
                         <div className="hidden items-center gap-2 sm:flex">
                           {lessonProgressMap[lesson.id]?.passed && (
-                            <Badge variant="secondary" className="gap-1 text-xs bg-green-500/10 text-green-600 dark:text-green-400">
+                            <Badge
+                              variant="secondary"
+                              className="gap-1 text-xs bg-green-500/10 text-green-600 dark:text-green-400"
+                            >
                               <CheckCircle2 className="h-3 w-3" />
                               Passed
                             </Badge>
                           )}
                           {lesson.payback_amount > 0 && (
                             <Badge variant="outline" className="gap-1 text-xs">
-                              <Coins className="h-3 w-3" />
-                              +{lesson.payback_amount} PAS
+                              <Coins className="h-3 w-3" />+
+                              {lesson.payback_amount} tokens
                             </Badge>
                           )}
                         </div>
@@ -361,7 +382,8 @@ export default function CourseDetailPage({
                   </CardTitle>
                   {!hasAccess && (
                     <CardDescription>
-                      Pay with PAS tokens to access all lessons and quizzes.
+                      Pay with platform tokens to access all lessons and
+                      quizzes.
                     </CardDescription>
                   )}
                 </CardHeader>
@@ -381,23 +403,34 @@ export default function CourseDetailPage({
                           <Separator />
                           <div className="space-y-2 text-sm">
                             <div className="flex items-center justify-between">
-                              <span className="text-muted-foreground">Completed</span>
+                              <span className="text-muted-foreground">
+                                Completed
+                              </span>
                               <span className="font-medium">
-                                {progress.completed_lessons}/{progress.total_lessons} lessons
+                                {progress.completed_lessons}/
+                                {progress.total_lessons} lessons
                               </span>
                             </div>
                             <div className="flex items-center justify-between">
-                              <span className="text-muted-foreground">Passed</span>
+                              <span className="text-muted-foreground">
+                                Passed
+                              </span>
                               <span className="font-medium text-green-600 dark:text-green-400">
-                                {progress.passed_lessons}/{progress.total_lessons} lessons
+                                {progress.passed_lessons}/
+                                {progress.total_lessons} lessons
                               </span>
                             </div>
                             {progress.total_earned > 0 && (
                               <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground">Earned</span>
-                                <Badge variant="secondary" className="gap-1 bg-primary/10 text-primary">
+                                <span className="text-muted-foreground">
+                                  Earned
+                                </span>
+                                <Badge
+                                  variant="secondary"
+                                  className="gap-1 bg-primary/10 text-primary"
+                                >
                                   <Coins className="h-3 w-3" />
-                                  {progress.total_earned} PAS
+                                  {progress.total_earned} tokens
                                 </Badge>
                               </div>
                             )}
@@ -412,13 +445,13 @@ export default function CourseDetailPage({
                           {course.price}
                         </span>
                         <span className="ml-2 text-lg text-muted-foreground">
-                          PAS
+                          tokens
                         </span>
                       </div>
 
                       {balance && (
                         <p className="text-center text-sm text-muted-foreground">
-                          Your balance: {balance.formattedTransferable} PAS
+                          Your balance: {balance.formattedTransferable} tokens
                         </p>
                       )}
 
@@ -435,7 +468,7 @@ export default function CourseDetailPage({
                         </div>
                         <div className="flex items-center gap-2">
                           <Coins className="h-4 w-4 text-primary" />
-                          Earn PAS back by completing quizzes
+                          Earn tokens back by completing quizzes
                         </div>
                       </div>
 
@@ -445,9 +478,7 @@ export default function CourseDetailPage({
                         </p>
                       ) : !user ? (
                         <Link href="/onboarding">
-                          <Button className="w-full">
-                            Register first
-                          </Button>
+                          <Button className="w-full">Register first</Button>
                         </Link>
                       ) : (
                         <AlertDialog>
@@ -468,26 +499,31 @@ export default function CourseDetailPage({
                               ) : (
                                 <>
                                   <Coins className="mr-2 h-4 w-4" />
-                                  Purchase for {course.price} PAS
+                                  Purchase for {course.price} tokens
                                 </>
                               )}
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Confirm Purchase</AlertDialogTitle>
+                              <AlertDialogTitle>
+                                Confirm Purchase
+                              </AlertDialogTitle>
                               <AlertDialogDescription className="space-y-3">
                                 <span className="block">
-                                  You are about to purchase <strong>{course.title}</strong> for{" "}
-                                  <strong>{course.price} PAS</strong>.
+                                  You are about to purchase{" "}
+                                  <strong>{course.title}</strong> for{" "}
+                                  <strong>{course.price} tokens</strong>.
                                 </span>
                                 <span className="block text-xs">
-                                  This will send {course.price} PAS from your wallet to the course
-                                  author. This action is irreversible once confirmed.
+                                  This will send {course.price} tokens from your
+                                  wallet to the course author. This action is
+                                  irreversible once confirmed.
                                 </span>
                                 {balance && (
                                   <span className="block text-xs">
-                                    Your balance: {balance.formattedTransferable} PAS
+                                    Your balance:{" "}
+                                    {balance.formattedTransferable} tokens
                                   </span>
                                 )}
                               </AlertDialogDescription>
