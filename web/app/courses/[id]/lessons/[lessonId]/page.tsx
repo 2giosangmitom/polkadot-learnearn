@@ -17,7 +17,7 @@ import {
   type CourseProgress,
   type LessonProgressSummary,
 } from "@/lib/api";
-import { useUserStore } from "@/lib/user-store";
+import { useAuthStore } from "@/lib/auth-store";
 import { VideoPlayer } from "@/components/video-player";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,7 +55,7 @@ export default function LessonPage({
 }) {
   const { id: courseId, lessonId } = use(params);
   const router = useRouter();
-  const user = useUserStore((s) => s.user);
+  const user = useAuthStore((s) => s.user);
 
   const [course, setCourse] = useState<Course | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
@@ -101,8 +101,8 @@ export default function LessonPage({
         if (user) {
           try {
             const [prog, cProg] = await Promise.all([
-              progressApi.lessonProgress(lessonId, user.id),
-              progressApi.courseProgress(courseId, user.id),
+              progressApi.lessonProgress(lessonId),
+              progressApi.courseProgress(courseId),
             ]);
             if (prog.answered > 0) {
               setPreviousProgress(prog);
@@ -149,7 +149,6 @@ export default function LessonPage({
       await quizAnswersApi.create(quiz.id, {
         quiz_id: quiz.id,
         selected_option: selectedOption,
-        user_id: user.id,
       });
     } catch {
       // non-critical

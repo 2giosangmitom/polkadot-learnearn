@@ -13,7 +13,7 @@ import {
   type CourseCreate,
   type CourseUpdate,
 } from "@/lib/api";
-import { useUserStore } from "@/lib/user-store";
+import { useAuthStore } from "@/lib/auth-store";
 import { normalizeYouTubeUrl, isValidYouTubeUrl, stripHtml } from "@/lib/utils";
 import { TipTapEditor } from "@/components/tiptap-editor";
 import { BlurFade } from "@/components/ui/blur-fade";
@@ -137,7 +137,7 @@ const OPTION_LABELS: Record<number, string> = {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const user = useUserStore((s) => s.user);
+  const user = useAuthStore((s) => s.user);
   const { theme } = useTheme();
 
   // --- View state: "list" or "editor" ---
@@ -477,12 +477,11 @@ export default function DashboardPage() {
         _refreshFromResponse(result);
         toast.success("Course updated!");
       } else {
-        // Create new course
+        // Create new course (author_id inferred from JWT)
         const createData: CourseCreate = {
           title: courseTitle.trim(),
           description: courseDescription.trim(),
           price: coursePrice,
-          author_id: user.id,
           lessons,
         };
         const result = await coursesApi.create(createData);

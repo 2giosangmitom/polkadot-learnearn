@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import HTTPException, status
 
 
@@ -61,6 +63,44 @@ class PaymentVerificationFailed(HTTPException):
         super().__init__(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail=detail,
+        )
+
+
+class PaymentRequired(HTTPException):
+    """Access denied — course has not been purchased.
+
+    Returns a structured 402 response that the x402 agent can parse to
+    initiate the payment flow automatically.
+    """
+
+    def __init__(
+        self,
+        course_id: uuid.UUID,
+        course_title: str,
+        price: float,
+        platform_wallet_address: str,
+    ) -> None:
+        super().__init__(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "type": "payment_required",
+                "message": "You must purchase this course to access its content.",
+                "course_id": str(course_id),
+                "course_title": course_title,
+                "price": price,
+                "platform_wallet_address": platform_wallet_address,
+            },
+        )
+
+
+class CoursePaybackExceedsPrice(HTTPException):
+    """Total payback + platform fee exceeds the course price."""
+
+    def __init__(self, detail: str | None = None) -> None:
+        super().__init__(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=detail
+            or "Total lesson paybacks plus platform fee exceed the course price.",
         )
 
 

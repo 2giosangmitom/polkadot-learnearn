@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 from pydantic import UUID4
@@ -10,11 +11,19 @@ from src.auth.models import User
 from src.config import settings
 from src.course.blockchain import get_block_hash_from_tx, verify_payment
 from src.course.exceptions import (
+    CoursePaybackExceedsPrice,
     PaymentVerificationFailed,
     QuizGenerationFailed,
     TransactionNotFound,
 )
-from src.course.models import Course, CoursePurchase, Lesson, Quiz, QuizAnswer
+from src.course.models import (
+    Course,
+    CoursePurchase,
+    Lesson,
+    PaybackTransaction,
+    Quiz,
+    QuizAnswer,
+)
 from src.course.schemas import (
     CourseCreate,
     CoursePurchaseCreate,
@@ -32,6 +41,7 @@ from src.course.schemas import (
     QuizResultItem,
 )
 
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Course
@@ -59,7 +69,8 @@ def _course_to_response(
         description=course.description,
         price=course.price,
         author_id=course.author_id,
-        author_wallet_address=wallet_map.get(course.author_id),
+        author_wallet_address=wallet_map.get(course.author_id, ""),
+        platform_wallet_address=settings.PLATFORM_WALLET_ADDRESS,
         created_at=course.created_at,  # type: ignore[arg-type]
         updated_at=course.updated_at,  # type: ignore[arg-type]
     )
@@ -87,6 +98,34 @@ async def get_course_response(session: AsyncSession, course: Course) -> CourseRe
 async def delete_course(session: AsyncSession, course: Course) -> None:
     await session.delete(course)
     await session.commit()
+
+
+# ---------------------------------------------------------------------------
+# Validation: payback + platform fee must not exceed price
+# ---------------------------------------------------------------------------
+
+
+def _validate_course_economics(price: float, lessons: list) -> None:
+    """Raise CoursePaybackExceedsPrice if total paybacks + platform fee > price.
+
+    Args:
+        price: Course price in token units.
+        lessons: List of LessonUpsert (or similar with payback_amount attribute).
+    """
+    if price <= 0:
+        # Free courses: all paybacks must be 0
+        total_payback = sum(l.payback_amount for l in lessons)
+        if total_payback > 0:
+            raise CoursePaybackExceedsPrice("Free courses cannot have payback amounts.")
+        return
+
+    total_payback = sum(l.payback_amount for l in lessons)
+    platform_fee = price * settings.PLATFORM_FEE_RATE
+    if total_payback + platform_fee > price:
+        raise CoursePaybackExceedsPrice(
+            f"Total payback ({total_payback}) + platform fee ({platform_fee:.4f}) "
+            f"= {total_payback + platform_fee:.4f} exceeds course price ({price})."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -144,7 +183,8 @@ async def _build_course_with_lessons_response(
         description=course.description,
         price=course.price,
         author_id=course.author_id,
-        author_wallet_address=wallet_map.get(course.author_id),  # type: ignore[arg-type]
+        author_wallet_address=wallet_map.get(course.author_id, ""),
+        platform_wallet_address=settings.PLATFORM_WALLET_ADDRESS,
         created_at=course.created_at,  # type: ignore[arg-type]
         updated_at=course.updated_at,  # type: ignore[arg-type]
         lessons=lesson_responses,
@@ -212,16 +252,22 @@ async def _sync_quizzes_for_lesson(
 # Course + Lessons + Quizzes: create (single transaction)
 # ---------------------------------------------------------------------------
 async def create_course_with_lessons(
-    session: AsyncSession, data: CourseCreate
+    session: AsyncSession, data: CourseCreate, author_id: uuid.UUID
 ) -> CourseWithLessonsResponse:
-    """Create a new course together with all its lessons and quizzes in one transaction."""
+    """Create a new course together with all its lessons and quizzes in one transaction.
+
+    The ``author_id`` comes from the authenticated user's JWT (not from the request body).
+    Validates that total paybacks + platform fee do not exceed the course price.
+    """
+    # Validate economics
+    _validate_course_economics(data.price, data.lessons)
 
     course = Course(
         id=uuid.uuid4(),
         title=data.title,
         description=data.description,
         price=data.price,
-        author_id=data.author_id,
+        author_id=author_id,
     )
     session.add(course)
 
@@ -273,7 +319,10 @@ async def update_course_with_lessons(
 
     Lessons and quizzes are synced to desired state: items in the request
     are created or updated, items in DB but not in the request are deleted.
+    Validates that total paybacks + platform fee do not exceed the course price.
     """
+    # Validate economics
+    _validate_course_economics(data.price, data.lessons)
 
     # --- Update course fields ---
     course.title = data.title
@@ -562,21 +611,188 @@ async def gen_quiz_from_data(
 
 
 # ---------------------------------------------------------------------------
-# QuizAnswer
+# QuizAnswer — now includes payback logic
 # ---------------------------------------------------------------------------
 async def create_quiz_answer(
-    session: AsyncSession, data: QuizAnswerCreate
+    session: AsyncSession, data: QuizAnswerCreate, user_id: uuid.UUID
 ) -> QuizAnswer:
+    """Submit a quiz answer.
+
+    ``user_id`` comes from the authenticated user's JWT token.
+    """
     answer = QuizAnswer(
         id=uuid.uuid4(),
         quiz_id=data.quiz_id,
         selected_option=data.selected_option,
-        user_id=data.user_id,
+        user_id=user_id,
     )
     session.add(answer)
     await session.commit()
     await session.refresh(answer)
+
+    # --- Check if this answer triggers a payback ---
+    # Uses a *separate* DB session so that any failure (UniqueViolation, etc.)
+    # does not poison the caller's session and break response serialisation.
+    try:
+        await _try_send_payback(data.quiz_id, user_id)
+    except Exception:
+        logger.exception(
+            "Payback attempt failed for user=%s quiz=%s — "
+            "the answer was saved but the on-chain transfer did not succeed.",
+            user_id,
+            data.quiz_id,
+        )
+
     return answer
+
+
+async def _try_send_payback(quiz_id: uuid.UUID, user_id: uuid.UUID) -> None:
+    """Check if the user has now passed the lesson and send payback if so.
+
+    Uses its own independent DB session to avoid poisoning the caller's
+    session on failure (e.g. UniqueViolation from a race condition).
+
+    Conditions for payback:
+    1. The lesson's payback_amount > 0
+    2. The user has answered ALL quizzes in the lesson
+    3. The user scored >= 70%
+    4. No PaybackTransaction exists yet for this (user_id, lesson_id)
+    5. The user has purchased the course (not the author)
+    """
+    from sqlalchemy.exc import IntegrityError
+
+    from src.database import engine
+
+    async with AsyncSession(engine) as pb_session:
+        # Get the quiz to find the lesson
+        quiz = await pb_session.get(Quiz, quiz_id)
+        if not quiz:
+            return
+
+        lesson = await pb_session.get(Lesson, quiz.lesson_id)
+        if not lesson or lesson.payback_amount <= 0:
+            return
+
+        # Check if payback already sent
+        existing_payback = await pb_session.exec(
+            select(PaybackTransaction).where(
+                PaybackTransaction.user_id == user_id,  # type: ignore[arg-type]
+                PaybackTransaction.lesson_id == lesson.id,  # type: ignore[arg-type]
+            )
+        )
+        if existing_payback.first():
+            return  # Already sent
+
+        # Get all quizzes for this lesson
+        quizzes_result = await pb_session.exec(
+            select(Quiz).where(Quiz.lesson_id == lesson.id)  # type: ignore[arg-type]
+        )
+        quizzes = list(quizzes_result.all())
+        if not quizzes:
+            return
+
+        # Get user's answers for these quizzes
+        quiz_ids = [q.id for q in quizzes]
+        answers_result = await pb_session.exec(
+            select(QuizAnswer).where(
+                QuizAnswer.quiz_id.in_(quiz_ids),  # type: ignore[union-attr]
+                QuizAnswer.user_id == user_id,  # type: ignore[arg-type]
+            )
+        )
+        answers = list(answers_result.all())
+
+        # Build answer map (last answer per quiz wins)
+        answer_map: dict[uuid.UUID, QuizAnswer] = {}
+        for a in answers:
+            answer_map[a.quiz_id] = a
+
+        # Must have answered all quizzes
+        if len(answer_map) < len(quizzes):
+            return
+
+        # Calculate score
+        correct = sum(
+            1
+            for q in quizzes
+            if q.id in answer_map
+            and answer_map[q.id].selected_option == q.correct_option
+        )
+        score_pct = (correct / len(quizzes)) * 100
+        if score_pct < 70.0:
+            return  # Not passed
+
+        # Verify the user has purchased the course (not the author)
+        course = await pb_session.get(Course, lesson.course_id)
+        if not course:
+            return
+        if course.author_id == user_id:
+            return  # Authors don't get paybacks
+
+        purchase_result = await pb_session.exec(
+            select(CoursePurchase).where(
+                CoursePurchase.course_id == course.id,  # type: ignore[arg-type]
+                CoursePurchase.user_id == user_id,  # type: ignore[arg-type]
+            )
+        )
+        if not purchase_result.first():
+            return  # No purchase
+
+        # Get user wallet address for on-chain transfer
+        user = await pb_session.get(User, user_id)
+        if not user:
+            return
+
+        # Send payback on-chain
+        amount_planck = int(lesson.payback_amount * (10**settings.TOKEN_DECIMALS))
+        if amount_planck <= 0:
+            return
+
+        logger.info(
+            "Attempting payback: %.4f PAS (%d planck) -> %s (user=%s, lesson=%s)",
+            lesson.payback_amount,
+            amount_planck,
+            user.wallet_address,
+            user_id,
+            lesson.id,
+        )
+
+        from src.platform.wallet import async_transfer_payback
+
+        tx_hash = await async_transfer_payback(user.wallet_address, amount_planck)
+
+        # Record the payback transaction
+        payback = PaybackTransaction(
+            id=uuid.uuid4(),
+            user_id=user_id,
+            lesson_id=lesson.id,
+            course_id=course.id,
+            amount=lesson.payback_amount,
+            transaction_hash=tx_hash,
+        )
+        pb_session.add(payback)
+        try:
+            await pb_session.commit()
+        except IntegrityError:
+            # Race condition: another request already inserted the payback.
+            # The on-chain transfer was already sent (duplicate spend) but
+            # we can't undo that.  Log and move on.
+            await pb_session.rollback()
+            logger.warning(
+                "Payback record already exists for user=%s lesson=%s — "
+                "on-chain transfer %s may be a duplicate.",
+                user_id,
+                lesson.id,
+                tx_hash,
+            )
+            return
+
+        logger.info(
+            "Payback sent: %.4f PAS -> %s (lesson=%s, tx=%s)",
+            lesson.payback_amount,
+            user.wallet_address,
+            lesson.id,
+            tx_hash,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -607,14 +823,22 @@ async def get_purchases_by_user(
 
 
 async def create_purchase(
-    session: AsyncSession, data: CoursePurchaseCreate, course: Course
+    session: AsyncSession,
+    data: CoursePurchaseCreate,
+    course: Course,
+    user_id: uuid.UUID,
 ) -> CoursePurchase:
-    """Verify the on-chain payment and persist the purchase.
+    """Verify the on-chain payment and persist the purchase with fee split.
 
+    Flow:
     1. Locate the block containing ``data.transaction_hash``.
-    2. Verify a ``Balances.Transfer`` to the **course author's wallet** for at
+    2. Verify a ``Balances.Transfer`` to the **platform wallet** for at
        least the course price exists in that block.
-    3. Persist and return the ``CoursePurchase`` record.
+    3. Calculate fee split: platform_fee, payback_reserve, teacher_share.
+    4. Send teacher's share on-chain from platform wallet.
+    5. Persist and return the ``CoursePurchase`` record.
+
+    ``user_id`` comes from the authenticated user's JWT (not from the request body).
 
     Raises:
         TransactionNotFound: 402 if the tx hash is not in recent blocks.
@@ -622,42 +846,91 @@ async def create_purchase(
     """
     tx_hash = data.transaction_hash
 
-    # Step 1 – find the block that contains this transaction.
-    # If the frontend provided block_hash (from the tx receipt), use it
-    # directly — this avoids the expensive finalized-block search and
-    # eliminates the race condition where the block is included but not
-    # yet finalized.
+    # Step 1 – find the block that contains this transaction
     block_hash: str | None = data.block_hash
     if block_hash is None:
         block_hash = get_block_hash_from_tx(tx_hash)
     if block_hash is None:
         raise TransactionNotFound(tx_hash)
 
-    # Step 2 – resolve the author's wallet address
-    wallet_map = await _get_author_wallet_map(session, {course.author_id})
-    recipient = wallet_map.get(course.author_id)
-    if not recipient:
+    # Step 2 – verify payment to PLATFORM wallet (not teacher)
+    platform_address = settings.PLATFORM_WALLET_ADDRESS
+    if not platform_address:
         raise PaymentVerificationFailed(
-            "Course author wallet address not found. Cannot verify payment."
+            "Platform wallet address not configured. Cannot verify payment."
         )
 
-    # Convert course price (float, token units) to planck (int).
-    # Paseo uses 10 decimals, so 1 PAS = 10_000_000_000 planck.
-    min_amount = int(course.price * 10_000_000_000)
+    min_amount = int(course.price * (10**settings.TOKEN_DECIMALS))
 
-    payment = verify_payment(block_hash, recipient, min_amount)
+    payment = verify_payment(block_hash, platform_address, min_amount)
     if payment is None:
         raise PaymentVerificationFailed(
-            f"No transfer of >= {min_amount} planck to {recipient} "
+            f"No transfer of >= {min_amount} planck to platform wallet {platform_address} "
             f"found in block {block_hash}."
         )
 
-    # Step 3 – persist
+    # Step 3 – calculate fee split
+    price = course.price
+    platform_fee = round(price * settings.PLATFORM_FEE_RATE, 10)
+
+    # Sum all lesson payback amounts for this course
+    lessons_result = await session.exec(
+        select(Lesson).where(Lesson.course_id == course.id)  # type: ignore[arg-type]
+    )
+    lessons = list(lessons_result.all())
+    total_payback_reserve = round(sum(l.payback_amount for l in lessons), 10)
+
+    teacher_share = round(price - platform_fee - total_payback_reserve, 10)
+    if teacher_share < 0:
+        teacher_share = 0.0
+
+    # Step 4 – send teacher's share on-chain (if > 0)
+    teacher_payout_hash: str | None = None
+    if teacher_share > 0:
+        wallet_map = await _get_author_wallet_map(session, {course.author_id})
+        teacher_wallet = wallet_map.get(course.author_id)
+        if teacher_wallet:
+            from src.platform.wallet import async_transfer_to_teacher
+
+            teacher_amount_planck = int(teacher_share * (10**settings.TOKEN_DECIMALS))
+            try:
+                teacher_payout_hash = await async_transfer_to_teacher(
+                    teacher_wallet, teacher_amount_planck
+                )
+                logger.info(
+                    "Teacher payout: %.4f PAS -> %s (tx=%s)",
+                    teacher_share,
+                    teacher_wallet,
+                    teacher_payout_hash,
+                )
+            except Exception:
+                logger.exception(
+                    "Teacher payout FAILED: %.4f PAS (%d planck) -> %s for course=%s. "
+                    "Purchase will be saved with status='pending'.",
+                    teacher_share,
+                    teacher_amount_planck,
+                    teacher_wallet,
+                    course.id,
+                )
+                # We still record the purchase — teacher payout can be retried
+        else:
+            logger.warning(
+                "No wallet found for author %s; skipping teacher payout.",
+                course.author_id,
+            )
+
+    # Step 5 – persist
     purchase = CoursePurchase(
         id=uuid.uuid4(),
         course_id=data.course_id,
-        user_id=data.user_id,
+        user_id=user_id,
         transaction_hash=tx_hash,
+        amount=price,
+        platform_fee_amount=platform_fee,
+        payback_reserve_amount=total_payback_reserve,
+        teacher_payout_amount=teacher_share,
+        teacher_payout_hash=teacher_payout_hash,
+        status="completed" if teacher_payout_hash else "pending",
     )
     session.add(purchase)
     await session.commit()
@@ -683,6 +956,15 @@ async def get_lesson_progress(
     )
     quizzes = list(quizzes_result.all())
 
+    # Check if payback was already sent
+    payback_result = await session.exec(
+        select(PaybackTransaction).where(
+            PaybackTransaction.user_id == user_id,  # type: ignore[arg-type]
+            PaybackTransaction.lesson_id == lesson_id,  # type: ignore[arg-type]
+        )
+    )
+    payback = payback_result.first()
+
     if not quizzes:
         return LessonProgressResponse(
             lesson_id=lesson_id,
@@ -692,6 +974,8 @@ async def get_lesson_progress(
             score_pct=0.0,
             completed=True,
             passed=True,
+            payback_sent=payback is not None,
+            payback_tx_hash=payback.transaction_hash if payback else None,
             results=[],
         )
 
@@ -747,6 +1031,8 @@ async def get_lesson_progress(
         score_pct=round(score_pct, 1),
         completed=answered_count >= total,
         passed=score_pct >= 70.0,
+        payback_sent=payback is not None,
+        payback_tx_hash=payback.transaction_hash if payback else None,
         results=results,
     )
 
@@ -799,6 +1085,17 @@ async def get_course_progress(
         for a in answers_result.all():
             answer_map[a.quiz_id] = a
 
+    # Get all payback transactions for this user and these lessons
+    payback_map: dict[uuid.UUID, PaybackTransaction] = {}
+    paybacks_result = await session.exec(
+        select(PaybackTransaction).where(
+            PaybackTransaction.user_id == user_id,  # type: ignore[arg-type]
+            PaybackTransaction.lesson_id.in_(lesson_ids),  # type: ignore[union-attr]
+        )
+    )
+    for pb in paybacks_result.all():
+        payback_map[pb.lesson_id] = pb
+
     # Build per-lesson summaries
     lesson_summaries: list[LessonProgressSummary] = []
     completed_lessons = 0
@@ -826,7 +1123,11 @@ async def get_course_progress(
             completed_lessons += 1
         if is_passed:
             passed_lessons += 1
-            total_earned += lesson.payback_amount
+
+        # Only count earned if payback was actually sent on-chain
+        payback_sent = lesson.id in payback_map
+        if payback_sent:
+            total_earned += payback_map[lesson.id].amount
 
         lesson_summaries.append(
             LessonProgressSummary(
@@ -840,6 +1141,7 @@ async def get_course_progress(
                 score_pct=round(score_pct, 1),
                 completed=is_completed,
                 passed=is_passed,
+                payback_sent=payback_sent,
             )
         )
 

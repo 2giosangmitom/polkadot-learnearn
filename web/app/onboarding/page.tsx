@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAccount, useStatus } from "@luno-kit/react";
+import { useAccount, useStatus, useSignMessage } from "@luno-kit/react";
 import { useConnectModal } from "@luno-kit/ui";
-import { useUserStore } from "@/lib/user-store";
+import { useAuthStore } from "@/lib/auth-store";
 import type { Role } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +29,12 @@ export default function OnboardingPage() {
   const { address } = useAccount();
   const connectionStatus = useStatus();
   const { open: openConnectModal } = useConnectModal();
-  const { user, register, isLoading } = useUserStore();
+  const { signMessageAsync } = useSignMessage();
+
+  const user = useAuthStore((s) => s.user);
+  const isLoading = useAuthStore((s) => s.isLoading);
+  const requestChallenge = useAuthStore((s) => s.requestChallenge);
+  const register = useAuthStore((s) => s.register);
 
   const [displayName, setDisplayName] = useState("");
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
@@ -47,15 +52,33 @@ export default function OnboardingPage() {
     if (!address || !selectedRole || !displayName.trim()) return;
 
     try {
-      const newUser = await register(address, displayName.trim(), selectedRole);
+      // Challenge / sign / register flow
+      const nonce = await requestChallenge(address);
+      const { signature } = await signMessageAsync({ message: nonce });
+      const newUser = await register(
+        address,
+        signature,
+        nonce,
+        displayName.trim(),
+        selectedRole,
+      );
       toast.success(
         `Welcome, ${newUser.display_name}! You're registered as a ${newUser.role}.`,
       );
       router.push(newUser.role === "Teacher" ? "/dashboard" : "/courses");
-    } catch {
-      toast.error(
-        "Registration failed. The wallet might already be registered.",
-      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (
+        msg.includes("Cancelled") ||
+        msg.includes("cancel") ||
+        msg.includes("Rejected")
+      ) {
+        toast.warning("Signature cancelled.");
+      } else {
+        toast.error(
+          "Registration failed. The wallet might already be registered.",
+        );
+      }
     }
   }
 

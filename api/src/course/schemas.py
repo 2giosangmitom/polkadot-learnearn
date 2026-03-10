@@ -18,7 +18,10 @@ class CourseResponse(BaseModel):
     price: float = Field(description="Course price.")
     author_id: uuid.UUID = Field(description="Author (teacher) ID.")
     author_wallet_address: str = Field(
-        description="Wallet address of the author (teacher) for direct payment.",
+        description="Wallet address of the author (teacher).",
+    )
+    platform_wallet_address: str = Field(
+        description="Platform wallet address where students send payment.",
     )
     created_at: datetime = Field(description="Creation timestamp.")
     updated_at: datetime = Field(description="Last update timestamp.")
@@ -97,14 +100,15 @@ class LessonUpsert(BaseModel):
 
 
 class CourseCreate(BaseModel):
-    """Create a new course together with all its lessons."""
+    """Create a new course together with all its lessons.
+
+    ``author_id`` is no longer in the request body — it is inferred from
+    the authenticated user's JWT token.
+    """
 
     title: str = Field(..., min_length=1, description="Course title.")
     description: str = Field(..., min_length=1, description="Course description.")
     price: float = Field(..., ge=0, description="Course price in token units.")
-    author_id: uuid.UUID = Field(
-        ..., description="UUID of the teacher who authored the course."
-    )
     lessons: list[LessonUpsert] = Field(
         default_factory=list,
         description="Full list of lessons for the course.",
@@ -182,7 +186,10 @@ class CourseWithLessonsResponse(BaseModel):
     price: float = Field(description="Course price.")
     author_id: uuid.UUID = Field(description="Author (teacher) ID.")
     author_wallet_address: str = Field(
-        description="Wallet address of the author (teacher) for direct payment.",
+        description="Wallet address of the author (teacher).",
+    )
+    platform_wallet_address: str = Field(
+        description="Platform wallet address where students send payment.",
     )
     created_at: datetime = Field(description="Creation timestamp.")
     updated_at: datetime = Field(description="Last update timestamp.")
@@ -247,13 +254,16 @@ class GeneratedQuizList(BaseModel):
 # QuizAnswer
 # ---------------------------------------------------------------------------
 class QuizAnswerCreate(BaseModel):
-    """Schema for submitting an answer to a quiz question."""
+    """Schema for submitting an answer to a quiz question.
+
+    ``user_id`` is no longer in the request body — it is inferred from
+    the authenticated user's JWT token.
+    """
 
     quiz_id: uuid.UUID = Field(..., description="ID of the quiz being answered.")
     selected_option: int = Field(
         ..., ge=1, le=4, description="Selected option number (1=A, 2=B, 3=C, 4=D)."
     )
-    user_id: uuid.UUID = Field(..., description="ID of the user submitting the answer.")
 
 
 class QuizAnswerResponse(BaseModel):
@@ -278,6 +288,9 @@ class CoursePurchaseCreate(BaseModel):
     be found or the payment does not match the course price, a
     **402 Payment Required** error is returned.
 
+    ``user_id`` is no longer in the request body — it is inferred from
+    the authenticated user's JWT token.
+
     When ``block_hash`` is provided the server can skip the expensive
     backwards block search and verify the transaction directly in that
     block.  The frontend should always try to include ``block_hash``
@@ -285,7 +298,6 @@ class CoursePurchaseCreate(BaseModel):
     """
 
     course_id: uuid.UUID = Field(..., description="ID of the purchased course.")
-    user_id: uuid.UUID = Field(..., description="ID of the purchasing user.")
     transaction_hash: str = Field(
         ...,
         min_length=2,
@@ -310,6 +322,56 @@ class CoursePurchaseResponse(BaseModel):
     course_id: uuid.UUID = Field(description="Purchased course ID.")
     user_id: uuid.UUID = Field(description="Purchasing user ID.")
     transaction_hash: str = Field(description="On-chain transaction hash (hex).")
+    amount: float = Field(description="Payment amount in token units.")
+    platform_fee_amount: float = Field(description="Platform fee in token units.")
+    payback_reserve_amount: float = Field(
+        description="Total payback reserve in token units."
+    )
+    teacher_payout_amount: float = Field(description="Teacher payout in token units.")
+    teacher_payout_hash: str | None = Field(
+        description="On-chain hash of the teacher payout transfer."
+    )
+    status: str = Field(description="Purchase status (pending/completed/failed).")
+    created_at: datetime | None = Field(description="Creation timestamp.")
+    updated_at: datetime | None = Field(description="Last update timestamp.")
+
+
+# ---------------------------------------------------------------------------
+# PaybackTransaction
+# ---------------------------------------------------------------------------
+class PaybackTransactionResponse(BaseModel):
+    """Schema returned when a payback has been sent to a student."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID = Field(description="Unique payback transaction identifier.")
+    user_id: uuid.UUID = Field(description="Student user ID.")
+    lesson_id: uuid.UUID = Field(description="Lesson ID.")
+    course_id: uuid.UUID = Field(description="Course ID.")
+    amount: float = Field(description="Payback amount in token units.")
+    transaction_hash: str = Field(
+        description="On-chain transaction hash of the payback transfer."
+    )
+    created_at: datetime | None = Field(description="Creation timestamp.")
+
+
+# ---------------------------------------------------------------------------
+# 402 Payment Required response (for OpenAPI docs)
+# ---------------------------------------------------------------------------
+class PaymentRequiredResponse(BaseModel):
+    """Structured 402 response returned when course content is accessed without purchase."""
+
+    type: str = Field(
+        default="payment_required",
+        description="Error type identifier for the x402 agent.",
+    )
+    message: str = Field(description="Human-readable message.")
+    course_id: str = Field(description="Course UUID that requires purchase.")
+    course_title: str = Field(description="Course title.")
+    price: float = Field(description="Course price in token units (PAS).")
+    platform_wallet_address: str = Field(
+        description="Platform wallet address to send payment to."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -343,6 +405,14 @@ class LessonProgressResponse(BaseModel):
     )
     completed: bool = Field(description="Whether the user has answered all questions.")
     passed: bool = Field(description="Whether the user scored >= 70%.")
+    payback_sent: bool = Field(
+        default=False,
+        description="Whether the payback has already been sent for this lesson.",
+    )
+    payback_tx_hash: str | None = Field(
+        default=None,
+        description="On-chain hash of the payback transaction (if sent).",
+    )
     results: list[QuizResultItem] = Field(description="Per-question results.")
 
 
@@ -374,6 +444,10 @@ class LessonProgressSummary(BaseModel):
     score_pct: float = Field(description="Score percentage (0-100).")
     completed: bool = Field(description="All questions answered.")
     passed: bool = Field(description="Score >= 70%.")
+    payback_sent: bool = Field(
+        default=False,
+        description="Whether the payback has been sent for this lesson.",
+    )
 
 
 # ---------------------------------------------------------------------------

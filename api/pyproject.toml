@@ -11,7 +11,9 @@ dependencies = [
     "httpx>=0.28.1",
     "psycopg[binary]>=3.2.0",
     "pydantic-settings>=2.0.0",
+    "PyJWT>=2.0",
     "pypolkadot>=0.2.5",
     "sqlmodel>=0.0.37",
+    "substrate-interface>=1.8.0",
     "yt-dlp>=2026.3.3",
 ]

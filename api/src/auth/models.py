@@ -9,7 +9,7 @@ from sqlmodel import Field, Relationship, SQLModel
 from src.models import Role
 
 if TYPE_CHECKING:
-    from src.course.models import Course, CoursePurchase, QuizAnswer
+    from src.course.models import Course, CoursePurchase, PaybackTransaction, QuizAnswer
 
 
 class User(SQLModel, table=True):
@@ -40,3 +40,6 @@ class User(SQLModel, table=True):
     courses: List["Course"] = Relationship(back_populates="author")
     course_purchases: List["CoursePurchase"] = Relationship(back_populates="user")
     quiz_answers: List["QuizAnswer"] = Relationship(back_populates="user")
+    payback_transactions: List["PaybackTransaction"] = Relationship(
+        back_populates="user"
+    )

@@ -14,11 +14,12 @@ from src.course.models import (  # noqa: F401
     Course,
     CoursePurchase,
     Lesson,
+    PaybackTransaction,
     Quiz,
     QuizAnswer,
 )
 
-from src.auth.router import router as auth_router
+from src.auth.router import auth_router, router as user_router
 from src.course.router import (
     course_router,
     lesson_detail_router,
@@ -57,7 +58,8 @@ app.add_middleware(
 )
 
 # Auth domain
-app.include_router(auth_router)
+app.include_router(auth_router)  # /auth/* (challenge, login, register, refresh, me)
+app.include_router(user_router)  # /users/* (list, get by wallet, update, delete)
 
 # Course domain
 app.include_router(course_router)

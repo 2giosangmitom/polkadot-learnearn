@@ -13,7 +13,7 @@ import {
   type CourseProgress,
   type LessonProgressSummary,
 } from "@/lib/api";
-import { useUserStore } from "@/lib/user-store";
+import { useAuthStore } from "@/lib/auth-store";
 import { useAccount, useStatus, useApi, useBalance } from "@luno-kit/react";
 import { useSendTransaction } from "@luno-kit/react";
 import {
@@ -68,7 +68,7 @@ export default function CourseDetailPage({
   const status = useStatus();
   const { api, isApiReady } = useApi();
   const { data: balance } = useBalance({ address });
-  const user = useUserStore((s) => s.user);
+  const user = useAuthStore((s) => s.user);
   const {
     sendTransactionAsync,
     isPending: isSending,
@@ -94,17 +94,14 @@ export default function CourseDetailPage({
         setCourse(c);
         setLessons(l);
 
-        // Check purchase status
+        // Check purchase status (scoped to authenticated user via JWT)
         if (user) {
-          const purchases = await purchasesApi.list({
-            course_id: id,
-            user_id: user.id,
-          });
+          const purchases = await purchasesApi.list({ course_id: id });
           if (purchases.length > 0) setPurchased(true);
 
           // Load progress
           try {
-            const prog = await progressApi.courseProgress(id, user.id);
+            const prog = await progressApi.courseProgress(id);
             setProgress(prog);
           } catch {
             // Not critical — progress just won't show
@@ -122,8 +119,8 @@ export default function CourseDetailPage({
   async function handlePurchase() {
     if (!user || !address || !course || !api || !isApiReady) return;
 
-    if (!course.author_wallet_address) {
-      toast.error("Course author wallet address not found. Cannot purchase.");
+    if (!course.platform_wallet_address) {
+      toast.error("Platform wallet address not found. Cannot purchase.");
       return;
     }
 
@@ -145,9 +142,9 @@ export default function CourseDetailPage({
 
       toast.info("Please confirm the transaction in your wallet...");
 
-      // Send PAS directly to the course author's wallet
+      // Send PAS to the platform wallet
       const tx = api.tx.balances.transferKeepAlive(
-        course.author_wallet_address,
+        course.platform_wallet_address,
         amountInPlanck,
       );
 
@@ -164,10 +161,9 @@ export default function CourseDetailPage({
 
       toast.info("Transaction confirmed! Verifying with the server...");
 
-      // Verify with backend
+      // Verify with backend (user_id inferred from JWT)
       await purchasesApi.create({
         course_id: course.id,
-        user_id: user.id,
         transaction_hash: receipt.transactionHash,
         block_hash: receipt.blockHash,
       });
@@ -519,7 +515,7 @@ export default function CourseDetailPage({
                                 </span>
                                 <span className="block text-xs">
                                   This will send {course.price} PAS from your
-                                  wallet to the course author. This action is
+                                  wallet to the platform. This action is
                                   irreversible once confirmed.
                                 </span>
                                 {balance && (

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ConnectButton } from "@luno-kit/ui";
 import { useAccount, useStatus } from "@luno-kit/react";
-import { useUserStore } from "@/lib/user-store";
+import { useAuthStore } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";
 import {
   BookOpen,
@@ -24,7 +24,7 @@ export function Navbar() {
   const pathname = usePathname();
   const { address } = useAccount();
   const status = useStatus();
-  const user = useUserStore((s) => s.user);
+  const user = useAuthStore((s) => s.user);
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 

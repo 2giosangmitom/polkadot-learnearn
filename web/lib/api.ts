@@ -22,6 +22,7 @@ export interface Course {
   price: number;
   author_id: string;
   author_wallet_address: string | null;
+  platform_wallet_address: string;
   created_at: string;
   updated_at: string;
 }
@@ -73,6 +74,11 @@ export interface CoursePurchase {
   course_id: string;
   user_id: string;
   amount: number;
+  platform_fee_amount: number;
+  payback_reserve_amount: number;
+  teacher_payout_amount: number;
+  teacher_payout_hash: string | null;
+  status: string;
   transaction_hash: string;
   created_at: string;
   updated_at: string;
@@ -117,7 +123,6 @@ export interface CourseCreate {
   title: string;
   description: string;
   price: number;
-  author_id: string;
   lessons: LessonUpsert[];
 }
 
@@ -139,12 +144,10 @@ export interface CourseWithLessonsResponse extends Course {
 export interface QuizAnswerCreate {
   quiz_id: string;
   selected_option: number;
-  user_id: string;
 }
 
 export interface CoursePurchaseCreate {
   course_id: string;
-  user_id: string;
   transaction_hash: string;
   block_hash?: string;
 }
@@ -190,6 +193,8 @@ export interface LessonProgress {
   score_pct: number;
   completed: boolean;
   passed: boolean;
+  payback_sent: boolean;
+  payback_tx_hash: string | null;
   results: QuizResultItem[];
 }
 
@@ -204,6 +209,7 @@ export interface LessonProgressSummary {
   score_pct: number;
   completed: boolean;
   passed: boolean;
+  payback_sent: boolean;
 }
 
 export interface CourseProgress {
@@ -215,6 +221,16 @@ export interface CourseProgress {
   lessons: LessonProgressSummary[];
 }
 
+// 402 Payment Required response
+export interface PaymentRequiredInfo {
+  type: "payment_required";
+  message: string;
+  course_id: string;
+  course_title: string;
+  price: number;
+  platform_wallet_address: string;
+}
+
 // ---------------------------------------------------------------------------
 // API error
 // ---------------------------------------------------------------------------
@@ -222,16 +238,99 @@ export interface CourseProgress {
 export class ApiError extends Error {
   status: number;
   detail: string;
+  paymentInfo?: PaymentRequiredInfo;
 
-  constructor(status: number, detail: string) {
+  constructor(
+    status: number,
+    detail: string,
+    paymentInfo?: PaymentRequiredInfo,
+  ) {
     super(detail);
     this.status = status;
     this.detail = detail;
+    this.paymentInfo = paymentInfo;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Token management (connected to auth store)
+// ---------------------------------------------------------------------------
+
+let _getAccessToken: (() => string | null) | null = null;
+let _refreshTokens: (() => Promise<void>) | null = null;
+
+/**
+ * Called once from providers.tsx to wire up the auth store to the API client.
+ * This avoids circular imports between api.ts and auth-store.ts.
+ */
+export function connectAuthToApi(
+  getAccessToken: () => string | null,
+  refreshTokens: () => Promise<void>,
+) {
+  _getAccessToken = getAccessToken;
+  _refreshTokens = refreshTokens;
+}
+
+// ---------------------------------------------------------------------------
+// 402 handler (connected to x402 agent)
+// ---------------------------------------------------------------------------
+
+let _handle402: ((info: PaymentRequiredInfo) => Promise<boolean>) | null = null;
+
+/**
+ * Called once from providers.tsx to wire up the x402 payment agent.
+ * The handler returns true if payment succeeded (retry the request),
+ * false if the user cancelled.
+ */
+export function connectPaymentAgent(
+  handler: (info: PaymentRequiredInfo) => Promise<boolean>,
+) {
+  _handle402 = handler;
+}
+
+// ---------------------------------------------------------------------------
+// Core fetch with auth headers + token refresh + 402 intercept
+// ---------------------------------------------------------------------------
+
+async function authFetch(
+  url: string,
+  init?: RequestInit,
+  _retried = false,
+): Promise<Response> {
+  const headers = new Headers(init?.headers);
+
+  // Inject auth header if we have a token
+  const token = _getAccessToken?.();
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const res = await fetch(url, { ...init, headers });
+
+  // 401 — try refresh once, then retry
+  if (res.status === 401 && !_retried && _refreshTokens) {
+    try {
+      await _refreshTokens();
+      return authFetch(url, init, true);
+    } catch {
+      // Refresh failed — propagate the 401
+    }
+  }
+
+  return res;
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
+    // 402 — parse payment info
+    if (res.status === 402) {
+      const body = await res.json().catch(() => ({}));
+      if (body.type === "payment_required") {
+        throw new ApiError(402, body.message ?? "Payment required", body);
+      }
+      throw new ApiError(402, body.detail ?? "Payment required");
+    }
+
     const body = await res.json().catch(() => ({ detail: res.statusText }));
     throw new ApiError(res.status, body.detail ?? res.statusText);
   }
@@ -246,6 +345,38 @@ function json(body: unknown): RequestInit {
   };
 }
 
+/**
+ * Authenticated fetch that also handles 402 via x402 agent.
+ * If a 402 is caught and the payment agent is connected, it:
+ * 1. Prompts the user to pay
+ * 2. If payment succeeds, retries the original request
+ * 3. If payment fails/cancelled, throws the ApiError
+ */
+async function fetchWithPaymentRetry<T>(
+  url: string,
+  init?: RequestInit,
+): Promise<T> {
+  try {
+    const res = await authFetch(url, init);
+    return await handleResponse<T>(res);
+  } catch (err) {
+    if (
+      err instanceof ApiError &&
+      err.status === 402 &&
+      err.paymentInfo &&
+      _handle402
+    ) {
+      const paid = await _handle402(err.paymentInfo);
+      if (paid) {
+        // Retry the original request after successful payment
+        const res = await authFetch(url, init);
+        return await handleResponse<T>(res);
+      }
+    }
+    throw err;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // YouTube Utilities
 // ---------------------------------------------------------------------------
@@ -254,7 +385,7 @@ export const youtubeApi = {
   /** Get metadata for a YouTube video URL. */
   getMetadata: (url: string) => {
     const params = new URLSearchParams({ url });
-    return fetch(
+    return authFetch(
       `${API_BASE}/courses/youtube/metadata?${params.toString()}`,
     ).then(handleResponse<YouTubeMetadata>);
   },
@@ -266,24 +397,25 @@ export const youtubeApi = {
 
 export const usersApi = {
   list: (offset = 0, limit = 100) =>
-    fetch(`${API_BASE}/users?offset=${offset}&limit=${limit}`).then(
+    authFetch(`${API_BASE}/users?offset=${offset}&limit=${limit}`).then(
       handleResponse<User[]>,
     ),
 
   getByWallet: (wallet: string) =>
-    fetch(`${API_BASE}/users/wallet/${encodeURIComponent(wallet)}`).then(
-      handleResponse<User>,
-    ),
+    authFetch(
+      `${API_BASE}/users/wallet/${encodeURIComponent(wallet)}`,
+    ).then(handleResponse<User>),
 
   create: (data: UserCreate) =>
-    fetch(`${API_BASE}/users`, { method: "POST", ...json(data) }).then(
+    authFetch(`${API_BASE}/users`, { method: "POST", ...json(data) }).then(
       handleResponse<User>,
     ),
 
   update: (id: string, data: UserUpdate) =>
-    fetch(`${API_BASE}/users/${id}`, { method: "PATCH", ...json(data) }).then(
-      handleResponse<User>,
-    ),
+    authFetch(`${API_BASE}/users/${id}`, {
+      method: "PATCH",
+      ...json(data),
+    }).then(handleResponse<User>),
 };
 
 // ---------------------------------------------------------------------------
@@ -292,25 +424,26 @@ export const usersApi = {
 
 export const coursesApi = {
   list: (offset = 0, limit = 100) =>
-    fetch(`${API_BASE}/courses?offset=${offset}&limit=${limit}`).then(
+    authFetch(`${API_BASE}/courses?offset=${offset}&limit=${limit}`).then(
       handleResponse<Course[]>,
     ),
 
   get: (id: string) =>
-    fetch(`${API_BASE}/courses/${id}`).then(handleResponse<Course>),
+    authFetch(`${API_BASE}/courses/${id}`).then(handleResponse<Course>),
 
   create: (data: CourseCreate) =>
-    fetch(`${API_BASE}/courses`, { method: "POST", ...json(data) }).then(
+    authFetch(`${API_BASE}/courses`, { method: "POST", ...json(data) }).then(
       handleResponse<CourseWithLessonsResponse>,
     ),
 
   update: (id: string, data: CourseUpdate) =>
-    fetch(`${API_BASE}/courses/${id}`, { method: "PUT", ...json(data) }).then(
-      handleResponse<CourseWithLessonsResponse>,
-    ),
+    authFetch(`${API_BASE}/courses/${id}`, {
+      method: "PUT",
+      ...json(data),
+    }).then(handleResponse<CourseWithLessonsResponse>),
 
   delete: (id: string) =>
-    fetch(`${API_BASE}/courses/${id}`, { method: "DELETE" }).then(
+    authFetch(`${API_BASE}/courses/${id}`, { method: "DELETE" }).then(
       handleResponse<void>,
     ),
 };
@@ -321,12 +454,12 @@ export const coursesApi = {
 
 export const lessonsApi = {
   listByCourse: (courseId: string, offset = 0, limit = 100) =>
-    fetch(
+    authFetch(
       `${API_BASE}/courses/${courseId}/lessons?offset=${offset}&limit=${limit}`,
     ).then(handleResponse<Lesson[]>),
 
   get: (id: string) =>
-    fetch(`${API_BASE}/lessons/${id}`).then(handleResponse<Lesson>),
+    fetchWithPaymentRetry<Lesson>(`${API_BASE}/lessons/${id}`),
 };
 
 // ---------------------------------------------------------------------------
@@ -335,18 +468,18 @@ export const lessonsApi = {
 
 export const quizzesApi = {
   listByLesson: (lessonId: string, offset = 0, limit = 100) =>
-    fetch(
+    fetchWithPaymentRetry<Quiz[]>(
       `${API_BASE}/lessons/${lessonId}/quizzes?offset=${offset}&limit=${limit}`,
-    ).then(handleResponse<Quiz[]>),
+    ),
 
   generate: (lessonId: string, data?: GenerateQuizRequest) =>
-    fetch(`${API_BASE}/lessons/${lessonId}/quizzes/generate`, {
+    authFetch(`${API_BASE}/lessons/${lessonId}/quizzes/generate`, {
       method: "POST",
       ...json(data ?? {}),
     }).then(handleResponse<Quiz[]>),
 
   generateFromData: (data: GenerateQuizFromDataRequest) =>
-    fetch(`${API_BASE}/courses/quizzes/generate-from-data`, {
+    authFetch(`${API_BASE}/courses/quizzes/generate-from-data`, {
       method: "POST",
       ...json(data),
     }).then(handleResponse<QuizData[]>),
@@ -358,7 +491,7 @@ export const quizzesApi = {
 
 export const quizAnswersApi = {
   create: (quizId: string, data: QuizAnswerCreate) =>
-    fetch(`${API_BASE}/quizzes/${quizId}/answers`, {
+    authFetch(`${API_BASE}/quizzes/${quizId}/answers`, {
       method: "POST",
       ...json(data),
     }).then(handleResponse<QuizAnswer>),
@@ -369,17 +502,16 @@ export const quizAnswersApi = {
 // ---------------------------------------------------------------------------
 
 export const purchasesApi = {
-  list: (params?: { course_id?: string; user_id?: string }) => {
+  list: (params?: { course_id?: string }) => {
     const q = new URLSearchParams();
     if (params?.course_id) q.set("course_id", params.course_id);
-    if (params?.user_id) q.set("user_id", params.user_id);
-    return fetch(`${API_BASE}/purchases?${q.toString()}`).then(
+    return authFetch(`${API_BASE}/purchases?${q.toString()}`).then(
       handleResponse<CoursePurchase[]>,
     );
   },
 
   create: (data: CoursePurchaseCreate) =>
-    fetch(`${API_BASE}/purchases`, { method: "POST", ...json(data) }).then(
+    authFetch(`${API_BASE}/purchases`, { method: "POST", ...json(data) }).then(
       handleResponse<CoursePurchase>,
     ),
 };
@@ -389,15 +521,15 @@ export const purchasesApi = {
 // ---------------------------------------------------------------------------
 
 export const progressApi = {
-  /** Get quiz results for a specific lesson for a specific user. */
-  lessonProgress: (lessonId: string, userId: string) =>
-    fetch(`${API_BASE}/lessons/${lessonId}/progress/${userId}`).then(
+  /** Get quiz results for a specific lesson for the authenticated user. */
+  lessonProgress: (lessonId: string) =>
+    authFetch(`${API_BASE}/lessons/${lessonId}/progress`).then(
       handleResponse<LessonProgress>,
     ),
 
-  /** Get overall course progress for a specific user. */
-  courseProgress: (courseId: string, userId: string) =>
-    fetch(`${API_BASE}/courses/${courseId}/progress/${userId}`).then(
+  /** Get overall course progress for the authenticated user. */
+  courseProgress: (courseId: string) =>
+    authFetch(`${API_BASE}/courses/${courseId}/progress`).then(
       handleResponse<CourseProgress>,
     ),
 };

@@ -65,8 +65,88 @@ class CoursePurchase(SQLModel, table=True):
     )
     transaction_hash: str = Field(sa_column=sa.Column(sa.Text, nullable=False))
 
+    # Payment amount (in token units, e.g. PAS)
+    amount: float = Field(default=0.0)
+
+    # Fee split fields (in token units)
+    platform_fee_amount: float = Field(default=0.0)
+    payback_reserve_amount: float = Field(default=0.0)
+    teacher_payout_amount: float = Field(default=0.0)
+
+    # Teacher payout on-chain tx hash (set after platform sends to teacher)
+    teacher_payout_hash: str | None = Field(sa_column=sa.Column(sa.Text, nullable=True))
+
+    # Purchase status: pending -> completed (after teacher payout) or failed
+    status: str = Field(
+        default="completed",
+        sa_column=sa.Column(sa.Text, nullable=False, server_default="completed"),
+    )
+
+    created_at: datetime | None = Field(
+        default=None,
+        sa_column=sa.Column(sa.DateTime, nullable=False, server_default=sa.func.now()),
+    )
+    updated_at: datetime | None = Field(
+        default=None,
+        sa_column=sa.Column(
+            sa.DateTime,
+            nullable=False,
+            server_default=sa.func.now(),
+            onupdate=sa.func.now(),
+        ),
+    )
+
     course: "Course" = Relationship(back_populates="course_purchases")
     user: "User" = Relationship(back_populates="course_purchases")
+
+
+class PaybackTransaction(SQLModel, table=True):
+    """Records on-chain payback sent to a student after passing a lesson quiz.
+
+    Has a unique constraint on (user_id, lesson_id) so each student can only
+    receive one payback per lesson.
+    """
+
+    __tablename__ = "payback_transaction"  # type: ignore[assignment]
+    __table_args__ = (
+        sa.UniqueConstraint("user_id", "lesson_id", name="uq_payback_user_lesson"),
+    )
+
+    id: uuid.UUID = Field(
+        sa_column=sa.Column(postgresql.UUID, primary_key=True, default=uuid.uuid4)
+    )
+    user_id: uuid.UUID = Field(
+        sa_column=sa.Column(postgresql.UUID, sa.ForeignKey("user.id"), nullable=False)
+    )
+    lesson_id: uuid.UUID = Field(
+        sa_column=sa.Column(
+            postgresql.UUID,
+            sa.ForeignKey("lesson.id", ondelete="CASCADE"),
+            nullable=False,
+        )
+    )
+    course_id: uuid.UUID = Field(
+        sa_column=sa.Column(
+            postgresql.UUID,
+            sa.ForeignKey("course.id", ondelete="CASCADE"),
+            nullable=False,
+        )
+    )
+
+    # Amount in token units (e.g. PAS)
+    amount: float = Field(default=0.0)
+
+    # On-chain transaction hash
+    transaction_hash: str = Field(sa_column=sa.Column(sa.Text, nullable=False))
+
+    created_at: datetime | None = Field(
+        default=None,
+        sa_column=sa.Column(sa.DateTime, nullable=False, server_default=sa.func.now()),
+    )
+
+    user: "User" = Relationship(back_populates="payback_transactions")
+    lesson: "Lesson" = Relationship(back_populates="payback_transactions")
+    course: "Course" = Relationship()
 
 
 class Lesson(SQLModel, table=True):
@@ -107,6 +187,9 @@ class Lesson(SQLModel, table=True):
     quizzes: List["Quiz"] = Relationship(
         back_populates="lesson",
         cascade_delete=True,
+    )
+    payback_transactions: List["PaybackTransaction"] = Relationship(
+        back_populates="lesson",
     )
 
 
