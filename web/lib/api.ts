@@ -59,11 +59,23 @@ export interface QuizAnswer {
   user_id: string;
 }
 
+export interface YouTubeMetadata {
+  title: string;
+  description: string;
+  duration: number | null;
+  uploader: string | null;
+  upload_date: string | null;
+  success: boolean;
+}
+
 export interface CoursePurchase {
   id: string;
   course_id: string;
   user_id: string;
+  amount: number;
   transaction_hash: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -139,6 +151,22 @@ export interface CoursePurchaseCreate {
 
 export interface GenerateQuizRequest {
   num_questions?: number;
+}
+
+export interface GenerateQuizFromDataRequest {
+  title: string;
+  description: string;
+  video_url?: string | null;
+  num_questions?: number;
+}
+
+export interface QuizData {
+  question: string;
+  option_a: string;
+  option_b: string;
+  option_c: string;
+  option_d: string;
+  correct_option: number;
 }
 
 // Progress / Results types
@@ -217,6 +245,20 @@ function json(body: unknown): RequestInit {
     body: JSON.stringify(body),
   };
 }
+
+// ---------------------------------------------------------------------------
+// YouTube Utilities
+// ---------------------------------------------------------------------------
+
+export const youtubeApi = {
+  /** Get metadata for a YouTube video URL. */
+  getMetadata: (url: string) => {
+    const params = new URLSearchParams({ url });
+    return fetch(
+      `${API_BASE}/courses/youtube/metadata?${params.toString()}`,
+    ).then(handleResponse<YouTubeMetadata>);
+  },
+};
 
 // ---------------------------------------------------------------------------
 // Users
@@ -302,6 +344,12 @@ export const quizzesApi = {
       method: "POST",
       ...json(data ?? {}),
     }).then(handleResponse<Quiz[]>),
+
+  generateFromData: (data: GenerateQuizFromDataRequest) =>
+    fetch(`${API_BASE}/courses/quizzes/generate-from-data`, {
+      method: "POST",
+      ...json(data),
+    }).then(handleResponse<QuizData[]>),
 };
 
 // ---------------------------------------------------------------------------

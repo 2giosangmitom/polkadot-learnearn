@@ -6,6 +6,7 @@ import {
   coursesApi,
   lessonsApi,
   quizzesApi,
+  youtubeApi,
   type Course,
   type LessonUpsert,
   type QuizUpsert,
@@ -13,6 +14,7 @@ import {
   type CourseUpdate,
 } from "@/lib/api";
 import { useUserStore } from "@/lib/user-store";
+import { normalizeYouTubeUrl, isValidYouTubeUrl } from "@/lib/utils";
 import { BlurFade } from "@/components/ui/blur-fade";
 import { TextAnimate } from "@/components/ui/text-animate";
 import { MagicCard } from "@/components/ui/magic-card";
@@ -161,6 +163,11 @@ export default function DashboardPage() {
   // AI quiz generation
   const [generatingQuiz, setGeneratingQuiz] = useState<string | null>(null);
 
+  // YouTube auto-fill
+  const [autoFillingYouTube, setAutoFillingYouTube] = useState<string | null>(
+    null,
+  );
+
   // --- Auth guard ---
   useEffect(() => {
     if (!user) {
@@ -283,8 +290,15 @@ export default function DashboardPage() {
     field: keyof LessonFormItem,
     value: string | number,
   ) {
+    let processedValue = value;
+
+    // Normalize YouTube URLs when the video_url field is updated
+    if (field === "video_url" && typeof value === "string") {
+      processedValue = normalizeYouTubeUrl(value);
+    }
+
     setLessonItems((prev) =>
-      prev.map((l) => (l._key === key ? { ...l, [field]: value } : l)),
+      prev.map((l) => (l._key === key ? { ...l, [field]: processedValue } : l)),
     );
   }
 
@@ -304,6 +318,36 @@ export default function DashboardPage() {
       [next[index], next[index + 1]] = [next[index + 1], next[index]];
       return next;
     });
+  }
+
+  // --- YouTube auto-fill ---
+  async function autoFillFromYouTube(lessonKey: string) {
+    const lesson = lessonItems.find((l) => l._key === lessonKey);
+    if (!lesson || !isValidYouTubeUrl(lesson.video_url)) {
+      return;
+    }
+
+    setAutoFillingYouTube(lessonKey);
+
+    try {
+      const metadata = await youtubeApi.getMetadata(lesson.video_url);
+
+      if (metadata.success && metadata.title) {
+        // Only auto-fill if fields are empty to avoid overwriting user input
+        if (!lesson.title.trim() && metadata.title) {
+          updateLesson(lessonKey, "title", metadata.title);
+        }
+
+        if (!lesson.description.trim() && metadata.description) {
+          // Use the full YouTube description
+          updateLesson(lessonKey, "description", metadata.description);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch YouTube metadata:", error);
+    } finally {
+      setAutoFillingYouTube(null);
+    }
   }
 
   // --- Quiz manipulation ---
@@ -468,16 +512,49 @@ export default function DashboardPage() {
   }
 
   // --- AI Quiz generation (populates form state) ---
-  async function handleGenerateQuiz(lessonKey: string, lessonId: string) {
-    setGeneratingQuiz(lessonId);
+  async function handleGenerateQuiz(
+    lessonKey: string,
+    lessonId: string | null,
+  ) {
+    const lesson = lessonItems.find((l) => l._key === lessonKey);
+    if (!lesson) return;
+
+    setGeneratingQuiz(lessonKey); // Use lessonKey instead of lessonId for loading state
+
     try {
-      const generated = await quizzesApi.generate(lessonId, {
-        num_questions: 3,
-      });
-      // Map generated quizzes into form items (they are already saved by the backend)
+      let generated: any[];
+
+      if (lessonId) {
+        // For saved lessons, use the existing API
+        generated = await quizzesApi.generate(lessonId, {
+          num_questions: 3,
+        });
+      } else {
+        // For unsaved lessons, use the new API with lesson data
+        const quizData = await quizzesApi.generateFromData({
+          title: lesson.title,
+          description: lesson.description,
+          video_url: lesson.video_url || null,
+          num_questions: 3,
+        });
+
+        // Convert quiz data to the expected format (without IDs for unsaved)
+        generated = quizData.map((q, i) => ({
+          id: null, // No ID for unsaved quizzes
+          question: q.question,
+          option_a: q.option_a,
+          option_b: q.option_b,
+          option_c: q.option_c,
+          option_d: q.option_d,
+          correct_option: q.correct_option,
+          quiz_index: i,
+        }));
+      }
+
+      // Map generated quizzes into form items
       const existingCount = (quizMap[lessonKey] ?? []).length;
       const newItems: QuizFormItem[] = generated.map((q, i) => ({
-        id: q.id,
+        id: q.id, // Will be null for unsaved lessons
         question: q.question,
         option_a: q.option_a,
         option_b: q.option_b,
@@ -487,10 +564,12 @@ export default function DashboardPage() {
         quiz_index: q.quiz_index ?? existingCount + i,
         _key: genKey("quiz"),
       }));
+
       setQuizMap((prev) => ({
         ...prev,
         [lessonKey]: [...(prev[lessonKey] ?? []), ...newItems],
       }));
+
       // Auto-open the quiz section
       setOpenQuizSections((prev) => new Set(prev).add(lessonKey));
       toast.success(`Generated ${generated.length} quiz questions!`);
@@ -592,7 +671,7 @@ export default function DashboardPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="course-price">Price (tokens)</Label>
+                <Label htmlFor="course-price">Price (PAS)</Label>
                 <Input
                   id="course-price"
                   type="number"
@@ -687,25 +766,27 @@ export default function DashboardPage() {
                             orientation="vertical"
                             className="mx-1 h-6"
                           />
-                          {/* AI quiz (only for saved lessons) */}
-                          {lesson.id && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-1.5"
-                              disabled={generatingQuiz === lesson.id}
-                              onClick={() =>
-                                handleGenerateQuiz(lesson._key, lesson.id!)
-                              }
-                            >
-                              {generatingQuiz === lesson.id ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <Sparkles className="h-3.5 w-3.5" />
-                              )}
-                              AI Quiz
-                            </Button>
-                          )}
+                          {/* AI quiz generation - available for all lessons */}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5"
+                            disabled={
+                              generatingQuiz === lesson._key ||
+                              !lesson.title.trim() ||
+                              !lesson.description.trim()
+                            }
+                            onClick={() =>
+                              handleGenerateQuiz(lesson._key, lesson.id)
+                            }
+                          >
+                            {generatingQuiz === lesson._key ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Sparkles className="h-3.5 w-3.5" />
+                            )}
+                            AI Quiz
+                          </Button>
                           {/* Remove */}
                           <Button
                             variant="ghost"
@@ -732,17 +813,67 @@ export default function DashboardPage() {
                         </div>
                         <div className="space-y-2">
                           <Label>YouTube Video URL</Label>
-                          <Input
-                            placeholder="https://youtube.com/watch?v=..."
-                            value={lesson.video_url}
-                            onChange={(e) =>
-                              updateLesson(
-                                lesson._key,
-                                "video_url",
-                                e.target.value,
-                              )
-                            }
-                          />
+                          <div className="space-y-1">
+                            <div className="flex gap-2">
+                              <Input
+                                placeholder="https://youtube.com/watch?v=..."
+                                value={lesson.video_url}
+                                onChange={(e) =>
+                                  updateLesson(
+                                    lesson._key,
+                                    "video_url",
+                                    e.target.value,
+                                  )
+                                }
+                                className={
+                                  lesson.video_url.trim() &&
+                                  !isValidYouTubeUrl(lesson.video_url)
+                                    ? "border-red-300 focus:border-red-500 focus:ring-red-200"
+                                    : lesson.video_url.trim() &&
+                                        isValidYouTubeUrl(lesson.video_url)
+                                      ? "border-green-300 focus:border-green-500 focus:ring-green-200"
+                                      : ""
+                                }
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={
+                                  !lesson.video_url.trim() ||
+                                  !isValidYouTubeUrl(lesson.video_url) ||
+                                  autoFillingYouTube === lesson._key
+                                }
+                                onClick={() => autoFillFromYouTube(lesson._key)}
+                                className="shrink-0"
+                              >
+                                {autoFillingYouTube === lesson._key
+                                  ? "Auto-filling..."
+                                  : "Auto-fill"}
+                              </Button>
+                            </div>
+                            {lesson.video_url.trim() &&
+                              !isValidYouTubeUrl(lesson.video_url) && (
+                                <p className="text-xs text-red-600">
+                                  Please enter a valid YouTube URL
+                                </p>
+                              )}
+                            {lesson.video_url.trim() &&
+                              isValidYouTubeUrl(lesson.video_url) && (
+                                <div className="flex items-center justify-between text-xs">
+                                  <span className="text-green-600">
+                                    ✓ Valid YouTube URL
+                                  </span>
+                                  {!lesson.title.trim() ||
+                                  !lesson.description.trim() ? (
+                                    <span className="text-blue-600">
+                                      Click "Auto-fill" to populate title and
+                                      description
+                                    </span>
+                                  ) : null}
+                                </div>
+                              )}
+                          </div>
                         </div>
                         <div className="space-y-2 sm:col-span-2">
                           <Label>Description</Label>
@@ -760,7 +891,7 @@ export default function DashboardPage() {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label>Reward Amount (tokens)</Label>
+                          <Label>Reward Amount (PAS)</Label>
                           <Input
                             type="number"
                             min={0}
@@ -944,7 +1075,7 @@ export default function DashboardPage() {
                       className="gap-1.5 bg-primary/10 text-primary"
                     >
                       <Coins className="h-3 w-3" />
-                      {course.price} tokens
+                      {course.price} PAS
                     </Badge>
                     <Button
                       variant="ghost"

@@ -202,6 +202,22 @@ class GenerateQuizRequest(BaseModel):
     )
 
 
+class GenerateQuizFromDataRequest(BaseModel):
+    """Schema for generating quiz questions from lesson data without requiring a saved lesson."""
+
+    title: str = Field(description="Lesson title.")
+    description: str = Field(description="Lesson description.")
+    video_url: str | None = Field(
+        default=None, description="YouTube video URL (optional)."
+    )
+    num_questions: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description="Number of quiz questions to generate (1-10).",
+    )
+
+
 class GeneratedQuizItem(BaseModel):
     """Schema describing a single AI-generated quiz question.
 
@@ -358,3 +374,17 @@ class LessonProgressSummary(BaseModel):
     score_pct: float = Field(description="Score percentage (0-100).")
     completed: bool = Field(description="All questions answered.")
     passed: bool = Field(description="Score >= 70%.")
+
+
+# ---------------------------------------------------------------------------
+# YouTube Metadata
+# ---------------------------------------------------------------------------
+class YouTubeMetadataResponse(BaseModel):
+    """YouTube video metadata response."""
+
+    title: str = Field(description="Video title.")
+    description: str = Field(description="Video description.")
+    duration: int | None = Field(description="Video duration in seconds.")
+    uploader: str | None = Field(description="Channel name.")
+    upload_date: str | None = Field(description="Upload date.")
+    success: bool = Field(description="Whether metadata extraction was successful.")

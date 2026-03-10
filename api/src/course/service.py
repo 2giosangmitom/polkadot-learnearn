@@ -477,6 +477,90 @@ async def gen_quiz(
     return quizzes
 
 
+async def gen_quiz_from_data(
+    title: str, description: str, video_url: str | None = None, num_questions: int = 3
+) -> list[dict]:
+    """Generate quiz questions from lesson data without requiring a saved lesson.
+
+    Returns quiz data as dictionaries (not saved to database).
+
+    Args:
+        title: Lesson title
+        description: Lesson description
+        video_url: Optional YouTube video URL
+        num_questions: Number of questions to generate (1-10)
+
+    Returns:
+        List of quiz dictionaries with question, options, and correct_option
+
+    Raises:
+        QuizGenerationFailed: If the AI provider fails.
+    """
+    count = max(1, min(num_questions, 10))
+
+    # --- Fetch subtitles (best effort) ---
+    subtitle: str | None = None
+    if video_url:
+        subtitle = await fetch_subtitles(video_url)
+
+    # --- Build prompts (same as gen_quiz) ---
+    system_prompt = (
+        "You are an expert educational quiz designer for an online learning platform. "
+        "Your task is to create high-quality multiple-choice questions that assess "
+        "student comprehension of a lesson.\n\n"
+        "Guidelines:\n"
+        f"- Generate exactly {count} question{'s' if count > 1 else ''}.\n"
+        "- Each question must have exactly 4 options (A, B, C, D) with exactly one correct answer.\n"
+        "- Questions should test understanding, not just rote memorization — "
+        "include application and analysis-level questions when possible.\n"
+        "- Distribute the correct answer across options A–D roughly evenly; "
+        "do NOT always make the same option correct.\n"
+        "- All incorrect options (distractors) must be plausible — "
+        "avoid obviously wrong or joke answers.\n"
+        "- Keep question and option text concise but unambiguous.\n"
+        "- Cover different parts of the lesson content; avoid asking the same concept twice.\n"
+        "- If video subtitles are provided, use them as the primary source of content; "
+        "the title and description provide additional context."
+    )
+
+    prompt = f"## Lesson Information\n\n**Title:** {title}\n"
+    if description:
+        prompt += f"\n**Description:**\n{description}\n"
+    if subtitle:
+        prompt += f"\n**Video Transcript:**\n{subtitle}\n"
+    prompt += (
+        f"\nGenerate {count} quiz question{'s' if count > 1 else ''} "
+        "based on the lesson content above."
+    )
+
+    # --- Call AI provider ---
+    try:
+        provider = get_ai_provider()
+        result = await provider.generate_structured(
+            system=system_prompt,
+            prompt=prompt,
+            output_schema=GeneratedQuizList,
+        )
+    except Exception as exc:
+        raise QuizGenerationFailed(detail=str(exc)) from exc
+
+    # --- Convert to dictionaries without saving ---
+    quiz_data = []
+    for item in result.items:
+        quiz_data.append(
+            {
+                "question": item.question,
+                "option_a": item.option_a,
+                "option_b": item.option_b,
+                "option_c": item.option_c,
+                "option_d": item.option_d,
+                "correct_option": item.correct_option,
+            }
+        )
+
+    return quiz_data
+
+
 # ---------------------------------------------------------------------------
 # QuizAnswer
 # ---------------------------------------------------------------------------

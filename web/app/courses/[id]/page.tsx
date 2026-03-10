@@ -130,7 +130,7 @@ export default function CourseDetailPage({
       const transferable = parseFloat(balance.formattedTransferable);
       if (transferable < course.price) {
         toast.error(
-          `Insufficient balance. You have ${balance.formattedTransferable} tokens but need ${course.price} tokens.`,
+          `Insufficient balance. You have ${balance.formattedTransferable} PAS but need ${course.price} PAS.`,
         );
         return;
       }
@@ -143,7 +143,7 @@ export default function CourseDetailPage({
 
       toast.info("Please confirm the transaction in your wallet...");
 
-      // Send tokens directly to the course author's wallet
+      // Send PAS directly to the course author's wallet
       const tx = api.tx.balances.transferKeepAlive(
         course.author_wallet_address,
         amountInPlanck,
@@ -250,7 +250,7 @@ export default function CourseDetailPage({
               className="gap-1.5 bg-primary/10 text-primary"
             >
               <Coins className="h-3 w-3" />
-              {isFree ? "Free" : `${course.price} tokens`}
+              {isFree ? "Free" : `${course.price} PAS`}
             </Badge>
             {purchased && (
               <Badge
@@ -336,7 +336,7 @@ export default function CourseDetailPage({
                           {lesson.payback_amount > 0 && (
                             <Badge variant="outline" className="gap-1 text-xs">
                               <Coins className="h-3 w-3" />+
-                              {lesson.payback_amount} tokens
+                              {lesson.payback_amount} PAS
                             </Badge>
                           )}
                         </div>
@@ -382,8 +382,7 @@ export default function CourseDetailPage({
                   </CardTitle>
                   {!hasAccess && (
                     <CardDescription>
-                      Pay with platform tokens to access all lessons and
-                      quizzes.
+                      Pay with PAS to access all lessons and quizzes.
                     </CardDescription>
                   )}
                 </CardHeader>
@@ -430,7 +429,7 @@ export default function CourseDetailPage({
                                   className="gap-1 bg-primary/10 text-primary"
                                 >
                                   <Coins className="h-3 w-3" />
-                                  {progress.total_earned} tokens
+                                  {progress.total_earned} PAS
                                 </Badge>
                               </div>
                             )}
@@ -445,13 +444,13 @@ export default function CourseDetailPage({
                           {course.price}
                         </span>
                         <span className="ml-2 text-lg text-muted-foreground">
-                          tokens
+                          PAS
                         </span>
                       </div>
 
                       {balance && (
                         <p className="text-center text-sm text-muted-foreground">
-                          Your balance: {balance.formattedTransferable} tokens
+                          Your balance: {balance.formattedTransferable} PAS
                         </p>
                       )}
 
@@ -468,7 +467,7 @@ export default function CourseDetailPage({
                         </div>
                         <div className="flex items-center gap-2">
                           <Coins className="h-4 w-4 text-primary" />
-                          Earn tokens back by completing quizzes
+                          Earn PAS back by completing quizzes
                         </div>
                       </div>
 
@@ -499,7 +498,7 @@ export default function CourseDetailPage({
                               ) : (
                                 <>
                                   <Coins className="mr-2 h-4 w-4" />
-                                  Purchase for {course.price} tokens
+                                  Purchase for {course.price} PAS
                                 </>
                               )}
                             </Button>
@@ -513,17 +512,17 @@ export default function CourseDetailPage({
                                 <span className="block">
                                   You are about to purchase{" "}
                                   <strong>{course.title}</strong> for{" "}
-                                  <strong>{course.price} tokens</strong>.
+                                  <strong>{course.price} PAS</strong>.
                                 </span>
                                 <span className="block text-xs">
-                                  This will send {course.price} tokens from your
+                                  This will send {course.price} PAS from your
                                   wallet to the course author. This action is
                                   irreversible once confirmed.
                                 </span>
                                 {balance && (
                                   <span className="block text-xs">
                                     Your balance:{" "}
-                                    {balance.formattedTransferable} tokens
+                                    {balance.formattedTransferable} PAS
                                   </span>
                                 )}
                               </AlertDialogDescription>

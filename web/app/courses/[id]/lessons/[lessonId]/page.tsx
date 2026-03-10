@@ -387,7 +387,7 @@ export default function LessonPage({
                               {l.payback_amount > 0 && (
                                 <span className="flex items-center gap-1 text-xs text-muted-foreground">
                                   <Coins className="h-3 w-3" />
-                                  {l.payback_amount} tokens
+                                  {l.payback_amount} PAS
                                 </span>
                               )}
                               {passed && (
@@ -512,7 +512,7 @@ export default function LessonPage({
                     className="gap-1.5 bg-primary/10 text-primary"
                   >
                     <Coins className="h-3 w-3" />
-                    Earn {lesson.payback_amount} tokens
+                    Earn {lesson.payback_amount} PAS
                   </Badge>
                 )}
                 {quizzes.length > 0 && (
@@ -595,7 +595,7 @@ export default function LessonPage({
                           lesson.payback_amount > 0 && (
                             <Badge className="mt-3 gap-2 bg-green-500/10 text-green-600 dark:text-green-400 py-2 px-4">
                               <Coins className="h-4 w-4" />
-                              Earned {lesson.payback_amount} tokens
+                              Earned {lesson.payback_amount} PAS
                             </Badge>
                           )}
                         {!previousProgress.passed && (
@@ -720,7 +720,7 @@ export default function LessonPage({
                             lesson.payback_amount > 0 && (
                               <Badge className="mt-4 gap-2 bg-green-500/10 text-green-600 dark:text-green-400 py-2 px-4">
                                 <Coins className="h-4 w-4" />
-                                You earned {lesson.payback_amount} tokens!
+                                You earned {lesson.payback_amount} PAS!
                               </Badge>
                             )}
                           <div className="mt-6 flex gap-3">

@@ -7,6 +7,7 @@ thread via :func:`asyncio.to_thread` to avoid blocking the event loop.
 import asyncio
 import logging
 from urllib.parse import parse_qs, urlparse
+from typing import TypedDict
 
 import httpx
 import yt_dlp
@@ -21,6 +22,16 @@ _YDL_OPTS: dict = {
     "writeautomaticsub": True,
     "subtitleslangs": ["en"],
 }
+
+
+class YouTubeMetadata(TypedDict):
+    """YouTube video metadata."""
+
+    title: str
+    description: str
+    duration: int | None
+    uploader: str | None
+    upload_date: str | None
 
 
 def _normalise_youtube_url(url: str) -> str:
@@ -50,10 +61,37 @@ def _extract_subtitle_url(info: dict) -> str | None:
     return None
 
 
+def _extract_metadata(info: dict) -> YouTubeMetadata:
+    """Extract metadata from yt-dlp info dict."""
+    metadata: YouTubeMetadata = {
+        "title": info.get("title", ""),
+        "description": info.get("description", ""),
+        "duration": info.get("duration"),
+        "uploader": info.get("uploader"),
+        "upload_date": info.get("upload_date"),
+    }
+    return metadata
+
+
 def _sync_get_info(url: str) -> dict:
     """Synchronous yt-dlp info extraction (runs in a thread)."""
     with yt_dlp.YoutubeDL(_YDL_OPTS) as ydl:
         return ydl.extract_info(url, download=False)  # type: ignore[return-value]
+
+
+async def fetch_youtube_metadata(video_url: str) -> YouTubeMetadata | None:
+    """Fetch metadata for a YouTube video URL.
+
+    Returns the video metadata including title and description,
+    or ``None`` if extraction fails. Errors are logged and swallowed.
+    """
+    try:
+        canonical = _normalise_youtube_url(video_url)
+        info = await asyncio.to_thread(_sync_get_info, canonical)
+        return _extract_metadata(info)
+    except Exception:
+        logger.exception("Failed to fetch metadata for %s", video_url)
+        return None
 
 
 async def fetch_subtitles(video_url: str) -> str | None:

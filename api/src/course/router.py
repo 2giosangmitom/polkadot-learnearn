@@ -14,11 +14,13 @@ from src.course.schemas import (
     CourseUpdate,
     CourseWithLessonsResponse,
     GenerateQuizRequest,
+    GenerateQuizFromDataRequest,
     LessonProgressResponse,
     LessonResponse,
     QuizAnswerCreate,
     QuizAnswerResponse,
     QuizResponse,
+    YouTubeMetadataResponse,
 )
 from src.database import get_session
 
@@ -390,3 +392,77 @@ async def create_purchase(
 
         raise CourseNotFound()
     return await service.create_purchase(session, data, course)
+
+
+# ===========================================================================
+# YouTube Utilities
+# ===========================================================================
+
+
+@course_router.get(
+    "/youtube/metadata",
+    response_model=YouTubeMetadataResponse,
+    summary="Get YouTube video metadata",
+    description="Extract title, description, and other metadata from a YouTube URL.",
+    responses={
+        status.HTTP_200_OK: {"description": "YouTube metadata retrieved successfully."},
+        status.HTTP_400_BAD_REQUEST: {"description": "Invalid YouTube URL."},
+        status.HTTP_422_UNPROCESSABLE_ENTITY: {"description": "Validation error."},
+    },
+)
+async def get_youtube_metadata(
+    url: str = Query(..., description="YouTube video URL"),
+) -> YouTubeMetadataResponse:
+    """Get metadata for a YouTube video."""
+    from src.ai.subtitles import fetch_youtube_metadata
+
+    metadata = await fetch_youtube_metadata(url)
+
+    if metadata is None:
+        return YouTubeMetadataResponse(
+            title="",
+            description="",
+            duration=None,
+            uploader=None,
+            upload_date=None,
+            success=False,
+        )
+
+    return YouTubeMetadataResponse(
+        title=metadata["title"],
+        description=metadata["description"],
+        duration=metadata["duration"],
+        uploader=metadata["uploader"],
+        upload_date=metadata["upload_date"],
+        success=True,
+    )
+
+
+@course_router.post(
+    "/quizzes/generate-from-data",
+    response_model=list[dict],
+    status_code=status.HTTP_200_OK,
+    summary="Generate quiz questions with AI from lesson data",
+    description=(
+        "Use AI to automatically generate multiple-choice quiz questions from lesson data. "
+        "The AI uses the lesson title, description, and YouTube video subtitles "
+        "(when available) to create high-quality questions.\n\n"
+        "This endpoint does NOT save quizzes to the database - it returns preview data only. "
+        "Returns **502 Bad Gateway** if the AI provider fails."
+    ),
+    responses={
+        status.HTTP_200_OK: {
+            "description": "Quiz questions generated successfully (not saved to database).",
+        },
+        status.HTTP_502_BAD_GATEWAY: {"description": "AI generation failed."},
+    },
+)
+async def generate_quizzes_from_data(
+    body: GenerateQuizFromDataRequest,
+) -> list[dict]:
+    return await service.gen_quiz_from_data(
+        title=body.title,
+        description=body.description,
+        video_url=body.video_url,
+        num_questions=body.num_questions,
+    )

@@ -61,8 +61,8 @@ export default function CoursesPage() {
         </BlurFade>
         <BlurFade delay={0.2}>
           <p className="mt-3 text-muted-foreground max-w-xl">
-            Browse expert-created courses. Purchase access with platform tokens
-            and start learning.
+            Browse expert-created courses. Purchase access with PAS and start
+            learning.
           </p>
         </BlurFade>
         {!loading && (
@@ -111,7 +111,7 @@ export default function CoursesPage() {
                         className="gap-1.5 bg-primary/10 text-primary hover:bg-primary/15"
                       >
                         <Coins className="h-3 w-3" />
-                        {course.price} tokens
+                        {course.price} PAS
                       </Badge>
                       <span className="text-xs text-muted-foreground">
                         {new Date(course.created_at).toLocaleDateString()}
