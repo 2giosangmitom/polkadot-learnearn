@@ -28,6 +28,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { BlurFade } from "@/components/ui/blur-fade";
+import { DescriptionRenderer } from "@/components/description-renderer";
+import { stripHtml } from "@/lib/utils";
 import { BorderBeam } from "@/components/ui/border-beam";
 import { ShineBorder } from "@/components/ui/shine-border";
 import {
@@ -269,9 +271,10 @@ export default function CourseDetailPage({
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
             {course.title}
           </h1>
-          <p className="mt-3 text-muted-foreground leading-relaxed">
-            {course.description}
-          </p>
+          <DescriptionRenderer
+            html={course.description}
+            className="mt-3 text-muted-foreground leading-relaxed"
+          />
         </div>
       </BlurFade>
 
@@ -320,7 +323,7 @@ export default function CourseDetailPage({
                                 ? `${lessonProgressMap[lesson.id].correct}/${lessonProgressMap[lesson.id].total_questions} correct (${lessonProgressMap[lesson.id].score_pct}%) — needs 70% to pass`
                                 : lessonProgressMap[lesson.id]?.answered > 0
                                   ? `In progress — ${lessonProgressMap[lesson.id].answered}/${lessonProgressMap[lesson.id].total_questions} answered`
-                                  : lesson.description}
+                                  : stripHtml(lesson.description)}
                           </p>
                         </div>
                         <div className="hidden items-center gap-2 sm:flex">

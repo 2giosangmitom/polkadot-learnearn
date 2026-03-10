@@ -14,7 +14,12 @@ import {
   type CourseUpdate,
 } from "@/lib/api";
 import { useUserStore } from "@/lib/user-store";
-import { normalizeYouTubeUrl, isValidYouTubeUrl } from "@/lib/utils";
+import {
+  normalizeYouTubeUrl,
+  isValidYouTubeUrl,
+  stripHtml,
+} from "@/lib/utils";
+import { TipTapEditor } from "@/components/tiptap-editor";
 import { BlurFade } from "@/components/ui/blur-fade";
 import { TextAnimate } from "@/components/ui/text-animate";
 import { MagicCard } from "@/components/ui/magic-card";
@@ -22,7 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Card,
@@ -662,12 +667,10 @@ export default function DashboardPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="course-description">Description</Label>
-                <Textarea
-                  id="course-description"
-                  placeholder="A comprehensive course on..."
+                <TipTapEditor
                   value={courseDescription}
-                  onChange={(e) => setCourseDescription(e.target.value)}
-                  rows={3}
+                  onChange={setCourseDescription}
+                  placeholder="A comprehensive course on..."
                 />
               </div>
               <div className="space-y-2">
@@ -877,17 +880,16 @@ export default function DashboardPage() {
                         </div>
                         <div className="space-y-2 sm:col-span-2">
                           <Label>Description</Label>
-                          <Textarea
-                            placeholder="What students will learn..."
+                          <TipTapEditor
                             value={lesson.description}
-                            onChange={(e) =>
+                            onChange={(html) =>
                               updateLesson(
                                 lesson._key,
                                 "description",
-                                e.target.value,
+                                html,
                               )
                             }
-                            rows={2}
+                            placeholder="What students will learn..."
                           />
                         </div>
                         <div className="space-y-2">
@@ -1093,7 +1095,7 @@ export default function DashboardPage() {
                     {course.title}
                   </h3>
                   <p className="flex-1 text-sm text-muted-foreground line-clamp-2">
-                    {course.description}
+                    {stripHtml(course.description)}
                   </p>
                   <Separator className="my-3" />
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">

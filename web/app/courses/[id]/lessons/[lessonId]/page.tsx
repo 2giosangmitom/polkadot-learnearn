@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { DescriptionRenderer } from "@/components/description-renderer";
 
 export default function LessonPage({
   params,
@@ -526,9 +527,10 @@ export default function LessonPage({
                 {lesson.title}
               </h1>
               {lesson.description && (
-                <p className="mt-2 text-muted-foreground">
-                  {lesson.description}
-                </p>
+                <DescriptionRenderer
+                  html={lesson.description}
+                  className="mt-2 text-muted-foreground"
+                />
               )}
             </div>
 

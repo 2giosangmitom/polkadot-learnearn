@@ -6,6 +6,14 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * Strip HTML tags from a string, returning plain text.
+ * Useful for rendering HTML descriptions in truncated card previews.
+ */
+export function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, "");
+}
+
+/**
  * Normalize a YouTube URL to the standard format: https://www.youtube.com/watch?v={videoId}
  * Handles both youtube.com and youtu.be formats
  */

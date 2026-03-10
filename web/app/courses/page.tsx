@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BookOpen, Coins, User as UserIcon } from "lucide-react";
 import { useTheme } from "next-themes";
+import { stripHtml } from "@/lib/utils";
 
 export default function CoursesPage() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -123,7 +124,7 @@ export default function CoursesPage() {
                       {course.title}
                     </h3>
                     <p className="mb-4 flex-1 text-sm text-muted-foreground line-clamp-3">
-                      {course.description}
+                      {stripHtml(course.description)}
                     </p>
 
                     {/* Author */}
