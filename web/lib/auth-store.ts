@@ -31,11 +31,7 @@ interface AuthState {
   requestChallenge: (address: string) => Promise<string>;
 
   /** Login with a signed challenge (existing user) */
-  login: (
-    address: string,
-    signature: string,
-    message: string,
-  ) => Promise<User>;
+  login: (address: string, signature: string, message: string) => Promise<User>;
 
   /** Register + login with a signed challenge (new user) */
   register: (
@@ -68,10 +64,7 @@ interface AuthState {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-async function apiFetch<T>(
-  path: string,
-  init?: RequestInit,
-): Promise<T> {
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, init);
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: res.statusText }));
@@ -153,7 +146,8 @@ export const useAuthStore = create<AuthState>()(
           });
           return res.user;
         } catch (err) {
-          const msg = err instanceof Error ? err.message : "Registration failed";
+          const msg =
+            err instanceof Error ? err.message : "Registration failed";
           set({ error: msg, isLoading: false });
           throw err;
         }

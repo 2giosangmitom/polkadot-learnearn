@@ -101,9 +101,7 @@ export function X402PaymentDialog() {
         block_hash: receipt.blockHash,
       });
 
-      toast.success(
-        "Course purchased successfully! Loading content...",
-      );
+      toast.success("Course purchased successfully! Loading content...");
 
       setProcessing(false);
       resolvePayment(true);
@@ -122,7 +120,10 @@ export function X402PaymentDialog() {
   }
 
   return (
-    <AlertDialog open={isOpen} onOpenChange={(open) => !open && cancelPayment()}>
+    <AlertDialog
+      open={isOpen}
+      onOpenChange={(open) => !open && cancelPayment()}
+    >
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
@@ -133,7 +134,8 @@ export function X402PaymentDialog() {
             <div className="space-y-4">
               <p>
                 To access this content, you need to purchase{" "}
-                <strong className="text-foreground">{info.course_title}</strong>.
+                <strong className="text-foreground">{info.course_title}</strong>
+                .
               </p>
 
               <div className="rounded-lg border p-4 space-y-3">

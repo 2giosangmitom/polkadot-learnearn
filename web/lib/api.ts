@@ -402,9 +402,9 @@ export const usersApi = {
     ),
 
   getByWallet: (wallet: string) =>
-    authFetch(
-      `${API_BASE}/users/wallet/${encodeURIComponent(wallet)}`,
-    ).then(handleResponse<User>),
+    authFetch(`${API_BASE}/users/wallet/${encodeURIComponent(wallet)}`).then(
+      handleResponse<User>,
+    ),
 
   create: (data: UserCreate) =>
     authFetch(`${API_BASE}/users`, { method: "POST", ...json(data) }).then(

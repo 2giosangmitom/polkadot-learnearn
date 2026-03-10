@@ -35,7 +35,11 @@ export function WalletSync() {
       prevAddress.current = address;
 
       // If we already have a valid session for this address, skip re-auth
-      if (currentUser && currentUser.wallet_address === address && accessToken) {
+      if (
+        currentUser &&
+        currentUser.wallet_address === address &&
+        accessToken
+      ) {
         return;
       }
 
