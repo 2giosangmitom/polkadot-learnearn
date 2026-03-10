@@ -6,7 +6,6 @@ from sqlmodel import SQLModel
 
 # Import database first to set naming conventions before models register
 from src.database import engine  # noqa: F401
-from src.config import settings
 
 # Import all models so SQLModel metadata is fully populated
 from src.auth.models import User  # noqa: F401

@@ -34,7 +34,6 @@ from src.course.schemas import (
     GeneratedQuizList,
     LessonProgressResponse,
     LessonProgressSummary,
-    LessonResponse,
     LessonWithQuizzesResponse,
     QuizAnswerCreate,
     QuizResponse,

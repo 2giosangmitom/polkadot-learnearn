@@ -1,5 +1,3 @@
-import uuid
-
 from fastapi import Depends
 from pydantic import UUID4
 from sqlmodel import select

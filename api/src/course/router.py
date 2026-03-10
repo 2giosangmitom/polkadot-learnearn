@@ -25,7 +25,6 @@ from src.course.schemas import (
     GenerateQuizRequest,
     LessonProgressResponse,
     LessonResponse,
-    PaybackTransactionResponse,
     QuizAnswerCreate,
     QuizAnswerResponse,
     QuizResponse,
