@@ -83,12 +83,7 @@ export function TipTapEditor({
       return;
     }
 
-    editor
-      .chain()
-      .focus()
-      .extendMarkRange("link")
-      .setLink({ href: url })
-      .run();
+    editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
   }, [editor]);
 
   if (!editor) return null;
@@ -105,9 +100,7 @@ export function TipTapEditor({
         <Toggle
           size="sm"
           pressed={editor.isActive("bold")}
-          onPressedChange={() =>
-            editor.chain().focus().toggleBold().run()
-          }
+          onPressedChange={() => editor.chain().focus().toggleBold().run()}
           aria-label="Bold"
         >
           <Bold className="h-4 w-4" />
@@ -115,9 +108,7 @@ export function TipTapEditor({
         <Toggle
           size="sm"
           pressed={editor.isActive("italic")}
-          onPressedChange={() =>
-            editor.chain().focus().toggleItalic().run()
-          }
+          onPressedChange={() => editor.chain().focus().toggleItalic().run()}
           aria-label="Italic"
         >
           <Italic className="h-4 w-4" />
@@ -198,9 +189,7 @@ export function TipTapEditor({
           <Toggle
             size="sm"
             pressed
-            onPressedChange={() =>
-              editor.chain().focus().unsetLink().run()
-            }
+            onPressedChange={() => editor.chain().focus().unsetLink().run()}
             aria-label="Remove link"
           >
             <Unlink className="h-4 w-4" />

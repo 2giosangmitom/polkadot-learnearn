@@ -14,11 +14,7 @@ import {
   type CourseUpdate,
 } from "@/lib/api";
 import { useUserStore } from "@/lib/user-store";
-import {
-  normalizeYouTubeUrl,
-  isValidYouTubeUrl,
-  stripHtml,
-} from "@/lib/utils";
+import { normalizeYouTubeUrl, isValidYouTubeUrl, stripHtml } from "@/lib/utils";
 import { TipTapEditor } from "@/components/tiptap-editor";
 import { BlurFade } from "@/components/ui/blur-fade";
 import { TextAnimate } from "@/components/ui/text-animate";
@@ -883,11 +879,7 @@ export default function DashboardPage() {
                           <TipTapEditor
                             value={lesson.description}
                             onChange={(html) =>
-                              updateLesson(
-                                lesson._key,
-                                "description",
-                                html,
-                              )
+                              updateLesson(lesson._key, "description", html)
                             }
                             placeholder="What students will learn..."
                           />

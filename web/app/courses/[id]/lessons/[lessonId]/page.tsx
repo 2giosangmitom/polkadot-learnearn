@@ -18,6 +18,7 @@ import {
   type LessonProgressSummary,
 } from "@/lib/api";
 import { useUserStore } from "@/lib/user-store";
+import { VideoPlayer } from "@/components/video-player";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -135,22 +136,6 @@ export default function LessonPage({
     setPreviousProgress(null);
   }, [lessonId]);
 
-  function getVideoEmbedUrl(url: string): string | null {
-    try {
-      const u = new URL(url);
-      let videoId: string | null = null;
-      if (u.hostname.includes("youtube.com")) {
-        videoId = u.searchParams.get("v");
-      } else if (u.hostname.includes("youtu.be")) {
-        videoId = u.pathname.slice(1);
-      }
-      if (videoId) return `https://www.youtube.com/embed/${videoId}`;
-    } catch {
-      // not a valid URL
-    }
-    return null;
-  }
-
   async function handleAnswer() {
     if (selectedOption === null || !user) return;
     setAnswered(true);
@@ -247,7 +232,6 @@ export default function LessonPage({
     );
   }
 
-  const embedUrl = getVideoEmbedUrl(lesson.video_url);
   const quiz = quizzes[currentQuiz];
   const progressPct =
     quizzes.length > 0
@@ -477,30 +461,7 @@ export default function LessonPage({
         {/* Scrollable content area */}
         <div className="flex-1 overflow-y-auto">
           {/* Video — full width, edge-to-edge */}
-          <div className="bg-black">
-            {embedUrl ? (
-              <div className="aspect-video">
-                <iframe
-                  src={embedUrl}
-                  className="h-full w-full"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                  title={lesson.title}
-                />
-              </div>
-            ) : (
-              <div className="flex aspect-video items-center justify-center">
-                <a
-                  href={lesson.video_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary underline"
-                >
-                  Watch video externally
-                </a>
-              </div>
-            )}
-          </div>
+          <VideoPlayer videoUrl={lesson.video_url} title={lesson.title} />
 
           {/* Content below video */}
           <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">

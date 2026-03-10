@@ -66,6 +66,27 @@ export function getYouTubeEmbedUrl(url: string): string | null {
 }
 
 /**
+ * Extract the YouTube video ID from a URL.
+ * Returns null if the URL is not a valid YouTube URL.
+ */
+export function getYouTubeVideoId(url: string): string | null {
+  try {
+    const u = new URL(url);
+    let videoId: string | null = null;
+
+    if (u.hostname.includes("youtube.com")) {
+      videoId = u.searchParams.get("v");
+    } else if (u.hostname.includes("youtu.be")) {
+      videoId = u.pathname.slice(1);
+    }
+
+    return videoId && videoId.length > 0 ? videoId : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Validate if a URL is a valid YouTube URL
  */
 export function isValidYouTubeUrl(url: string): boolean {

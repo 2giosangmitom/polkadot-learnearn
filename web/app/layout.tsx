@@ -28,11 +28,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} font-[family-name:var(--font-geist-sans)] antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} font-(family-name:--font-geist-sans) antialiased`}
       >
         <Providers>
           <Navbar />
-          <main className="min-h-[calc(100vh-4rem)]">{children}</main>
+          <main>{children}</main>
         </Providers>
       </body>
     </html>
