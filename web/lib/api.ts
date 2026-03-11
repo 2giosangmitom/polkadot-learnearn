@@ -221,14 +221,56 @@ export interface CourseProgress {
   lessons: LessonProgressSummary[];
 }
 
-// 402 Payment Required response
-export interface PaymentRequiredInfo {
-  type: "payment_required";
-  message: string;
-  course_id: string;
-  course_title: string;
-  price: number;
-  platform_wallet_address: string;
+// ---------------------------------------------------------------------------
+// x402 V2 protocol types
+// ---------------------------------------------------------------------------
+
+export interface ResourceInfo {
+  url: string;
+  description?: string;
+  mimeType?: string;
+}
+
+export interface PaymentRequirements {
+  scheme: string; // "exact"
+  network: string; // "polkadot:paseo"
+  maxAmountRequired: string; // planck as string
+  asset: string; // "PAS"
+  payTo: string; // SS58 platform wallet
+  maxTimeoutSeconds: number;
+  extra?: {
+    courseId?: string;
+    courseTitle?: string;
+    price?: number;
+  };
+}
+
+/** Decoded from the PAYMENT-REQUIRED response header (Base64 JSON). */
+export interface X402PaymentRequired {
+  x402Version: number;
+  resource: ResourceInfo;
+  accepts: PaymentRequirements[];
+}
+
+/** On-chain proof returned by the payment dialog. */
+export interface PaymentProof {
+  transactionHash: string;
+  blockHash: string;
+}
+
+/** Sent in the PAYMENT-SIGNATURE request header (Base64 JSON). */
+export interface PaymentPayload {
+  x402Version: number;
+  accepted: PaymentRequirements;
+  payload: PaymentProof;
+}
+
+/** Decoded from the PAYMENT-RESPONSE header (Base64 JSON). */
+export interface SettleResponse {
+  success: boolean;
+  transaction: string;
+  network: string;
+  payer?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -238,17 +280,18 @@ export interface PaymentRequiredInfo {
 export class ApiError extends Error {
   status: number;
   detail: string;
-  paymentInfo?: PaymentRequiredInfo;
+  /** x402 payment requirements (decoded from PAYMENT-REQUIRED header). */
+  paymentRequired?: X402PaymentRequired;
 
   constructor(
     status: number,
     detail: string,
-    paymentInfo?: PaymentRequiredInfo,
+    paymentRequired?: X402PaymentRequired,
   ) {
     super(detail);
     this.status = status;
     this.detail = detail;
-    this.paymentInfo = paymentInfo;
+    this.paymentRequired = paymentRequired;
   }
 }
 
@@ -275,17 +318,33 @@ export function connectAuthToApi(
 // 402 handler (connected to x402 agent)
 // ---------------------------------------------------------------------------
 
-let _handle402: ((info: PaymentRequiredInfo) => Promise<boolean>) | null = null;
+let _handle402:
+  | ((info: X402PaymentRequired) => Promise<PaymentProof | null>)
+  | null = null;
 
 /**
  * Called once from providers.tsx to wire up the x402 payment agent.
- * The handler returns true if payment succeeded (retry the request),
- * false if the user cancelled.
+ * The handler returns a PaymentProof if payment succeeded (retry with
+ * PAYMENT-SIGNATURE header), or null if the user cancelled.
  */
 export function connectPaymentAgent(
-  handler: (info: PaymentRequiredInfo) => Promise<boolean>,
+  handler: (info: X402PaymentRequired) => Promise<PaymentProof | null>,
 ) {
   _handle402 = handler;
+}
+
+// ---------------------------------------------------------------------------
+// Base64 helpers for x402 headers
+// ---------------------------------------------------------------------------
+
+function b64Encode(obj: unknown): string {
+  return btoa(JSON.stringify(obj));
+}
+
+function b64Decode<T = unknown>(value: string): T {
+  // Be lenient with padding
+  const padded = value + "=".repeat((4 - (value.length % 4)) % 4);
+  return JSON.parse(atob(padded)) as T;
 }
 
 // ---------------------------------------------------------------------------
@@ -322,13 +381,24 @@ async function authFetch(
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
-    // 402 — parse payment info
+    // 402 — read PAYMENT-REQUIRED header (x402 V2)
     if (res.status === 402) {
-      const body = await res.json().catch(() => ({}));
-      if (body.type === "payment_required") {
-        throw new ApiError(402, body.message ?? "Payment required", body);
+      const headerValue = res.headers.get("PAYMENT-REQUIRED");
+      if (headerValue) {
+        try {
+          const paymentRequired = b64Decode<X402PaymentRequired>(headerValue);
+          throw new ApiError(
+            402,
+            "Payment required",
+            paymentRequired,
+          );
+        } catch (e) {
+          if (e instanceof ApiError) throw e;
+          // Failed to decode header — fall through to generic 402
+        }
       }
-      throw new ApiError(402, body.detail ?? "Payment required");
+      const body = await res.json().catch(() => ({}));
+      throw new ApiError(402, body.error ?? body.detail ?? "Payment required");
     }
 
     const body = await res.json().catch(() => ({ detail: res.statusText }));
@@ -346,11 +416,13 @@ function json(body: unknown): RequestInit {
 }
 
 /**
- * Authenticated fetch that also handles 402 via x402 agent.
- * If a 402 is caught and the payment agent is connected, it:
- * 1. Prompts the user to pay
- * 2. If payment succeeds, retries the original request
- * 3. If payment fails/cancelled, throws the ApiError
+ * Authenticated fetch that also handles 402 via x402 protocol.
+ * If a 402 is caught with a PAYMENT-REQUIRED header and the payment
+ * agent is connected, it:
+ * 1. Prompts the user to pay (opens the x402 dialog)
+ * 2. User sends PAS on-chain and returns {transactionHash, blockHash}
+ * 3. Retries the original request with PAYMENT-SIGNATURE header
+ * 4. Server verifies on-chain, records purchase, returns data + PAYMENT-RESPONSE
  */
 async function fetchWithPaymentRetry<T>(
   url: string,
@@ -363,13 +435,24 @@ async function fetchWithPaymentRetry<T>(
     if (
       err instanceof ApiError &&
       err.status === 402 &&
-      err.paymentInfo &&
+      err.paymentRequired &&
       _handle402
     ) {
-      const paid = await _handle402(err.paymentInfo);
-      if (paid) {
-        // Retry the original request after successful payment
-        const res = await authFetch(url, init);
+      const proof = await _handle402(err.paymentRequired);
+      if (proof) {
+        // Build the PAYMENT-SIGNATURE header (x402 V2)
+        const accepted = err.paymentRequired.accepts[0];
+        const paymentPayload: PaymentPayload = {
+          x402Version: 2,
+          accepted,
+          payload: proof,
+        };
+        const sigHeader = b64Encode(paymentPayload);
+
+        // Retry with PAYMENT-SIGNATURE
+        const retryHeaders = new Headers(init?.headers);
+        retryHeaders.set("PAYMENT-SIGNATURE", sigHeader);
+        const res = await authFetch(url, { ...init, headers: retryHeaders });
         return await handleResponse<T>(res);
       }
     }

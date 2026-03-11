@@ -28,6 +28,7 @@ from src.course.router import (
     quiz_answer_router,
     quiz_router,
 )
+from src.x402.middleware import add_x402_support
 
 
 @asynccontextmanager
@@ -54,7 +55,11 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["PAYMENT-REQUIRED", "PAYMENT-RESPONSE"],
 )
+
+# x402 protocol support (exception handler + PAYMENT-SIGNATURE middleware)
+add_x402_support(app)
 
 # Auth domain
 app.include_router(auth_router)  # /auth/* (challenge, login, register, refresh, me)

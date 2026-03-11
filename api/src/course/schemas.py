@@ -356,25 +356,6 @@ class PaybackTransactionResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# 402 Payment Required response (for OpenAPI docs)
-# ---------------------------------------------------------------------------
-class PaymentRequiredResponse(BaseModel):
-    """Structured 402 response returned when course content is accessed without purchase."""
-
-    type: str = Field(
-        default="payment_required",
-        description="Error type identifier for the x402 agent.",
-    )
-    message: str = Field(description="Human-readable message.")
-    course_id: str = Field(description="Course UUID that requires purchase.")
-    course_title: str = Field(description="Course title.")
-    price: float = Field(description="Course price in token units (PAS).")
-    platform_wallet_address: str = Field(
-        description="Platform wallet address to send payment to."
-    )
-
-
-# ---------------------------------------------------------------------------
 # Progress / Results
 # ---------------------------------------------------------------------------
 class QuizResultItem(BaseModel):
