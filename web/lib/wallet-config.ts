@@ -1,7 +1,7 @@
 "use client";
 
 import { createConfig, createStorage } from "@luno-kit/react";
-import { paseoAssetHub } from "@luno-kit/react/chains";
+import { Chain, paseoAssetHub } from "@luno-kit/react/chains";
 import {
   polkadotjsConnector,
   subwalletConnector,
@@ -10,7 +10,17 @@ import {
 
 export const walletConfig = createConfig({
   appName: "Polkadot Learn & Earn",
-  chains: [paseoAssetHub],
+  chains: [
+    {
+      ...paseoAssetHub,
+      rpcUrls: {
+        webSocket: [
+          "wss://asset-hub-paseo.ibp.network",
+          "wss://asset-hub-paseo-rpc.n.dwellir.com",
+        ],
+      },
+    } satisfies Chain,
+  ],
   connectors: [
     subwalletConnector(),
     talismanConnector(),
