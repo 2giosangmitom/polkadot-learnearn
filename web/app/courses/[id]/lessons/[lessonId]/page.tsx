@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use, useCallback } from "react";
+import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -9,7 +9,6 @@ import {
   quizAnswersApi,
   progressApi,
   coursesApi,
-  purchasesApi,
   type Lesson,
   type Quiz,
   type LessonProgress,
@@ -29,7 +28,6 @@ import { Confetti } from "@/components/ui/confetti";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   ArrowLeft,
-  BookOpen,
   CheckCircle2,
   Coins,
   XCircle,
@@ -42,7 +40,6 @@ import {
   PanelLeftClose,
   PanelLeft,
   CircleAlert,
-  Lock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";

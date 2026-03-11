@@ -2,7 +2,6 @@
 
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   coursesApi,
   lessonsApi,
@@ -31,7 +30,6 @@ import { BlurFade } from "@/components/ui/blur-fade";
 import { DescriptionRenderer } from "@/components/description-renderer";
 import { stripHtml } from "@/lib/utils";
 import { BorderBeam } from "@/components/ui/border-beam";
-import { ShineBorder } from "@/components/ui/shine-border";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -63,7 +61,6 @@ export default function CourseDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const router = useRouter();
   const { address } = useAccount();
   const status = useStatus();
   const { api, isApiReady } = useApi();
