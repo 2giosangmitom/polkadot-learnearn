@@ -18,6 +18,13 @@ export const metadata: Metadata = {
   title: "Learn & Earn",
   description:
     "Interactive, expert-led courses — build practical skills and track your progress.",
+  icons: {
+    // Use the new site logo as the favicon (SVG). Modern browsers support SVG favicons;
+    // Next.js will include these in the rendered head. If you prefer a .ico for
+    // legacy support, add a `/favicon.ico` file to `public/` and change this value.
+    icon: "/logo-light.svg",
+    apple: "/logo-light.svg",
+  },
 };
 
 export default function RootLayout({

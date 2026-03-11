@@ -1,8 +1,10 @@
 "use client";
 
 import { BlurFade } from "@/components/ui/blur-fade";
-import { NeonGradientCard } from "@/components/ui/neon-gradient-card";
 import { Wallet, BookOpenCheck, Trophy } from "lucide-react";
+import { ShineBorder } from "./ui/shine-border";
+import { useTheme } from "next-themes";
+import { useEffect, useState } from "react";
 
 const steps = [
   {
@@ -29,6 +31,13 @@ const steps = [
 ];
 
 export function HowItWorks() {
+  const { theme } = useTheme();
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  });
+
   return (
     <section className="py-24 px-4 bg-muted/30">
       <div className="mx-auto max-w-5xl">
@@ -47,31 +56,29 @@ export function HowItWorks() {
         </div>
 
         <div className="grid gap-8 sm:grid-cols-2 md:grid-cols-3">
-          {steps.map((item, i) => (
-            <BlurFade key={item.step} delay={0.2 + i * 0.1}>
-              <NeonGradientCard
-                className="h-full"
-                neonColors={{
-                  firstColor: "var(--color-pink-500)",
-                  secondColor: "var(--color-blue-400)",
-                }}
-                borderSize={2}
-                borderRadius={16}
-              >
-                <div className="flex flex-col items-center p-6 text-center">
-                  <span className="mb-3 text-5xl font-black text-primary">
-                    {item.step}
-                  </span>
-                  <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
-                    <item.icon className="h-7 w-7" />
-                  </div>
-                  <h3 className="mb-2 text-lg font-bold">{item.title}</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">
-                    {item.description}
-                  </p>
-                </div>
-              </NeonGradientCard>
-            </BlurFade>
+          {steps.map((item) => (
+            <div
+              className="flex flex-col items-center p-6 text-center relative overflow-hidden rounded-lg border"
+              key={`${item.title}`}
+            >
+              <ShineBorder
+                shineColor={
+                  isClient && theme === "dark"
+                    ? ["var(--color-pink-400)", "var(--color-green-400)"]
+                    : ["var(--color-pink-600)", "var(--color-green-500)"]
+                }
+              />
+              <span className="mb-3 text-5xl font-black text-primary">
+                {item.step}
+              </span>
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <item.icon className="h-7 w-7" />
+              </div>
+              <h3 className="mb-2 text-lg font-bold">{item.title}</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                {item.description}
+              </p>
+            </div>
           ))}
         </div>
       </div>
