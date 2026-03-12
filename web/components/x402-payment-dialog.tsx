@@ -136,8 +136,7 @@ export function X402PaymentDialog() {
             <div className="space-y-4">
               <p>
                 To access this content, you need to purchase{" "}
-                <strong className="text-foreground">{courseTitle}</strong>
-                .
+                <strong className="text-foreground">{courseTitle}</strong>.
               </p>
 
               <div className="rounded-lg border p-4 space-y-3">

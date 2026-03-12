@@ -387,11 +387,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
       if (headerValue) {
         try {
           const paymentRequired = b64Decode<X402PaymentRequired>(headerValue);
-          throw new ApiError(
-            402,
-            "Payment required",
-            paymentRequired,
-          );
+          throw new ApiError(402, "Payment required", paymentRequired);
         } catch (e) {
           if (e instanceof ApiError) throw e;
           // Failed to decode header — fall through to generic 402
