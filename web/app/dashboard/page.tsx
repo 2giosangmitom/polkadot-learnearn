@@ -865,7 +865,7 @@ export default function DashboardPage() {
                                   {!lesson.title.trim() ||
                                   !lesson.description.trim() ? (
                                     <span className="text-blue-600">
-                                      Click "Auto-fill" to populate title and
+                                      Click &quot;Auto-fill&quot; to populate title and
                                       description
                                     </span>
                                   ) : null}
