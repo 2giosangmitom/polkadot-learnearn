@@ -4,8 +4,7 @@ WORKDIR /app
 
 # Needed to build pypolkadot
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential gcc ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    build-essential gcc
 
 COPY . .
 
