@@ -522,7 +522,18 @@ export default function DashboardPage() {
     setGeneratingQuiz(lessonKey); // Use lessonKey instead of lessonId for loading state
 
     try {
-      let generated: any[];
+      type GeneratedQuiz = {
+        id?: string | null;
+        question: string;
+        option_a: string;
+        option_b: string;
+        option_c: string;
+        option_d: string;
+        correct_option: number;
+        quiz_index?: number;
+      };
+
+      let generated: GeneratedQuiz[];
 
       if (lessonId) {
         // For saved lessons, use the existing API
