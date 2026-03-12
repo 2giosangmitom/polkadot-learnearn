@@ -3,22 +3,14 @@
 import { BlurFade } from "@/components/ui/blur-fade";
 import { MagicCard } from "@/components/ui/magic-card";
 import {
-  BookOpen,
   Brain,
   Coins,
   ShieldCheck,
-  Sparkles,
-  Video,
+  Zap,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 
 const features = [
-  {
-    icon: BookOpen,
-    title: "Interactive Courses",
-    description:
-      "Structured learning paths with video lessons and supporting materials for practical skills.",
-  },
   {
     icon: Brain,
     title: "AI-Powered Quizzes",
@@ -38,16 +30,10 @@ const features = [
       "Transparent verification for transactions used only for optional payments and rewards.",
   },
   {
-    icon: Video,
-    title: "Video-First Learning",
+    icon: Zap,
+    title: "x402",
     description:
-      "Watch curated lessons with subtitles and supporting resources to reinforce learning.",
-  },
-  {
-    icon: Sparkles,
-    title: "Teacher Tools",
-    description:
-      "Create courses, add lessons and quizzes, publish your content and reach learners.",
+      "Advanced hands-on module with practical labs, assessments, and real-world scenarios to deepen your skills.",
   },
 ];
 
@@ -72,7 +58,7 @@ export function FeaturesSection() {
           </BlurFade>
         </div>
 
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {features.map((feature, i) => (
             <BlurFade key={feature.title} delay={0.15 + i * 0.08}>
               <MagicCard

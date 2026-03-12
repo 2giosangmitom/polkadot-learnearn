@@ -36,7 +36,7 @@ export function HowItWorks() {
 
   useEffect(() => {
     setIsClient(true);
-  });
+  }, [isClient]);
 
   return (
     <section className="py-24 px-4 bg-muted/30">
