@@ -564,7 +564,7 @@ export default function DashboardPage() {
 
       // Map generated quizzes into form items
       const existingCount = (quizMap[lessonKey] ?? []).length;
-      const newItems: QuizFormItem[] = generated.map((q, i) => ({
+      const newItems: any[] = generated.map((q, i) => ({
         id: q.id, // Will be null for unsaved lessons
         question: q.question,
         option_a: q.option_a,
