@@ -1,29 +1,18 @@
 "use client";
 
 import { Separator } from "@/components/ui/separator";
-import { useTheme } from "next-themes";
-import { useState, useEffect } from "react";
 
 export function Footer() {
-  const [mounted, setMounted] = useState(false);
-  const { theme } = useTheme();
-
-  useEffect(() => setMounted(true), []);
-
   return (
     <footer className="border-t border-border/50 bg-card/30 py-12 px-4">
       <div className="mx-auto max-w-7xl">
         <div className="flex flex-col items-center gap-4 text-center">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center text-primary-foreground">
+            <div className="flex h-20 w-20 items-center justify-center text-primary-foreground transition-transform group-hover:scale-105">
               <img
-                src={
-                  mounted && theme === "dark"
-                    ? "/logo-dark.svg"
-                    : "/logo-light.svg"
-                }
+                src="/logo-removebg.png"
                 alt="Learn & Earn"
-                className="w-8"
+                className="w-full"
               />
             </div>
             <span className="font-bold text-lg">

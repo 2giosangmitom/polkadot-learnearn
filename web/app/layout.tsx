@@ -19,8 +19,8 @@ export const metadata: Metadata = {
   description:
     "Interactive, expert-led courses — build practical skills and track your progress.",
   icons: {
-    icon: "/logo-light.svg",
-    apple: "/logo-light.svg",
+    icon: "/logo-removebg.png",
+    apple: "/logo-removebg.png",
   },
 };
 

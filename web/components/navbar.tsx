@@ -13,7 +13,6 @@ import {
   Moon,
   Sun,
   Menu,
-  X,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useState, useEffect } from "react";
@@ -46,15 +45,11 @@ export function Navbar() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2.5 group">
-          <div className="flex h-9 w-9 items-center justify-center text-primary-foreground transition-transform group-hover:scale-105">
+          <div className="flex h-20 w-20 items-center justify-center text-primary-foreground transition-transform group-hover:scale-105">
             <img
-              src={
-                mounted && theme === "dark"
-                  ? "/logo-dark.svg"
-                  : "/logo-light.svg"
-              }
+              src="/logo-removebg.png"
               alt="Learn & Earn"
-              className="w-8"
+              className="w-full"
             />
           </div>
           <span className="hidden font-bold text-lg sm:block">
