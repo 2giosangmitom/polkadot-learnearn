@@ -90,7 +90,7 @@ export function Navbar() {
           )}
 
           {/* Role info */}
-          {isTeacher ? (
+          {!user ? null : user.role === "Teacher" ? (
             <RainbowButton variant="outline">Teacher</RainbowButton>
           ) : (
             <RainbowButton variant="outline">Student</RainbowButton>
