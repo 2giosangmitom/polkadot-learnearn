@@ -18,6 +18,7 @@ import { useTheme } from "next-themes";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { RainbowButton } from "./ui/rainbow-button";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -86,6 +87,13 @@ export function Navbar() {
                 Get Started
               </Button>
             </Link>
+          )}
+
+          {/* Role info */}
+          {isTeacher ? (
+            <RainbowButton variant="outline">Teacher</RainbowButton>
+          ) : (
+            <RainbowButton variant="outline">Student</RainbowButton>
           )}
 
           {/* Theme toggle */}
