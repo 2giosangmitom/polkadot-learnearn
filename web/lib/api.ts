@@ -296,8 +296,34 @@ export class ApiError extends Error {
 }
 
 // ---------------------------------------------------------------------------
-// Token management (connected to auth store)
+// Activities
 // ---------------------------------------------------------------------------
+
+export type ActivityType = "purchase" | "payback" | "teacher_payout";
+
+export interface ActivityItem {
+  id: string;
+  type: ActivityType;
+  amount: number;
+  transaction_hash: string;
+  timestamp: string;
+  status: string;
+  description: string;
+  user_id: string;
+  subscan_link?: string | null;
+}
+
+export interface ActivityListResponse {
+  course_id: string;
+  activities: ActivityItem[];
+}
+
+export const activitiesApi = {
+  list: (courseId: string) =>
+    authFetch(`${API_BASE}/courses/${courseId}/activities`).then(
+      handleResponse<ActivityListResponse>,
+    ),
+};
 
 let _getAccessToken: (() => string | null) | null = null;
 let _refreshTokens: (() => Promise<void>) | null = null;

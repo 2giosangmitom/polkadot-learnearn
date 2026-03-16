@@ -25,6 +25,9 @@ from src.course.models import (
     QuizAnswer,
 )
 from src.course.schemas import (
+    ActivityItem,
+    ActivityListResponse,
+    ActivityType,
     CourseCreate,
     CoursePurchaseCreate,
     CourseProgressResponse,
@@ -1152,3 +1155,120 @@ async def get_course_progress(
         total_earned=round(total_earned, 4),
         lessons=lesson_summaries,
     )
+
+
+# ---------------------------------------------------------------------------
+# Activities
+# ---------------------------------------------------------------------------
+async def get_course_activities(
+    session: AsyncSession, course_id: uuid.UUID, user_id: uuid.UUID
+) -> ActivityListResponse:
+    """Get all activities (transactions) for a course.
+
+    If the user is the course author (Teacher), returns all purchases of the course
+    and all teacher payouts.
+    If the user is a student, returns only their own purchase and paybacks.
+    """
+    course = await session.get(Course, course_id)
+    if not course:
+        from src.course.exceptions import CourseNotFound
+
+        raise CourseNotFound()
+
+    activities: list[ActivityItem] = []
+    is_author = course.author_id == user_id
+
+    if is_author:
+        # Teacher view: All purchases + payouts
+        purchases_result = await session.exec(
+            select(CoursePurchase).where(CoursePurchase.course_id == course_id) # type: ignore[arg-type]
+        )
+        purchases = purchases_result.all()
+
+        for p in purchases:
+            # Student Purchase
+            activities.append(
+                ActivityItem(
+                    id=p.id,
+                    type=ActivityType.PURCHASE,
+                    amount=p.amount,
+                    transaction_hash=p.transaction_hash,
+                    timestamp=p.created_at, # type: ignore[arg-type]
+                    status=p.status,
+                    description=f"Purchase by user {p.user_id}",
+                    user_id=p.user_id,
+                    subscan_link=f"https://assethub-paseo.subscan.io/extrinsic/{p.transaction_hash}",
+                )
+            )
+            # Teacher Payout
+            if p.teacher_payout_hash:
+                activities.append(
+                    ActivityItem(
+                        id=uuid.uuid4(),  # Virtual ID for the payout event
+                        type=ActivityType.TEACHER_PAYOUT,
+                        amount=p.teacher_payout_amount,
+                        transaction_hash=p.teacher_payout_hash,
+                        timestamp=p.created_at, # type: ignore[arg-type]
+                        status="completed",
+                        description="Teacher Payout",
+                        user_id=user_id,  # Payout is TO the teacher
+                        subscan_link=f"https://assethub-paseo.subscan.io/extrinsic/{p.teacher_payout_hash}",
+                    )
+                )
+
+    else:
+        # Student view: My purchase + My paybacks
+        # 1. Purchase
+        purchase_result = await session.exec(
+            select(CoursePurchase).where(
+                CoursePurchase.course_id == course_id, # type: ignore[arg-type]
+                CoursePurchase.user_id == user_id, # type: ignore[arg-type]
+            )
+        )
+        purchase = purchase_result.first()
+        if purchase:
+            activities.append(
+                ActivityItem(
+                    id=purchase.id,
+                    type=ActivityType.PURCHASE,
+                    amount=purchase.amount,
+                    transaction_hash=purchase.transaction_hash,
+                    timestamp=purchase.created_at, # type: ignore[arg-type]
+                    status=purchase.status,
+                    description=f"Course Purchase: {course.title}",
+                    user_id=user_id,
+                    subscan_link=f"https://assethub-paseo.subscan.io/extrinsic/{purchase.transaction_hash}",
+                )
+            )
+
+        # 2. Paybacks
+        # Join with Lesson to get the title
+        paybacks_result = await session.exec(
+            select(PaybackTransaction, Lesson.title)
+            .join(Lesson, PaybackTransaction.lesson_id == Lesson.id) # type: ignore[arg-type]
+            .where(
+                PaybackTransaction.course_id == course_id, # type: ignore[arg-type]
+                PaybackTransaction.user_id == user_id, # type: ignore[arg-type]
+            )
+        )
+        paybacks = paybacks_result.all()
+
+        for pb, lesson_title in paybacks:
+            activities.append(
+                ActivityItem(
+                    id=pb.id,
+                    type=ActivityType.PAYBACK,
+                    amount=pb.amount,
+                    transaction_hash=pb.transaction_hash,
+                    timestamp=pb.created_at, # type: ignore[arg-type]
+                    status="completed",
+                    description=f"Reward: {lesson_title}",
+                    user_id=user_id,
+                    subscan_link=f"https://assethub-paseo.subscan.io/extrinsic/{pb.transaction_hash}",
+                )
+            )
+
+    # Sort by timestamp descending
+    activities.sort(key=lambda x: x.timestamp, reverse=True)
+
+    return ActivityListResponse(course_id=course_id, activities=activities)

@@ -52,8 +52,10 @@ import {
   ShieldCheck,
   Trophy,
   CircleAlert,
+  History,
 } from "lucide-react";
 import { toast } from "sonner";
+import { TransactionHash } from "@/components/ui/transaction-hash";
 
 export default function CourseDetailPage({
   params,
@@ -78,6 +80,7 @@ export default function CourseDetailPage({
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(false);
   const [progress, setProgress] = useState<CourseProgress | null>(null);
+  const [coursePurchaseHash, setCoursePurchaseHash] = useState("");
 
   const isConnected = status === "connected" && !!address;
 
@@ -94,7 +97,10 @@ export default function CourseDetailPage({
         // Check purchase status (scoped to authenticated user via JWT)
         if (user) {
           const purchases = await purchasesApi.list({ course_id: id });
-          if (purchases.length > 0) setPurchased(true);
+          if (purchases.length > 0) {
+            setPurchased(true);
+            setCoursePurchaseHash(purchases[0].transaction_hash);
+          }
 
           // Load progress
           try {
@@ -376,10 +382,17 @@ export default function CourseDetailPage({
                   <CardTitle className="text-lg">
                     {hasAccess ? "You have access" : "Unlock this course"}
                   </CardTitle>
-                  {!hasAccess && (
+                  {!hasAccess ? (
                     <CardDescription>
                       Pay with PAS to access all lessons and quizzes.
                     </CardDescription>
+                  ) : (
+                    user!.role !== "Teacher" && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+                        <span>Ref:</span>
+                        <TransactionHash hash={coursePurchaseHash} />
+                      </div>
+                    )
                   )}
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -391,6 +404,13 @@ export default function CourseDetailPage({
                           Full access to all {lessons.length} lessons
                         </p>
                       </div>
+
+                      <Link href={`/courses/${id}/activities`}>
+                        <Button variant="outline" className="w-full mt-2">
+                          <History className="mr-2 h-4 w-4" />
+                          View Activities
+                        </Button>
+                      </Link>
 
                       {/* Progress summary */}
                       {progress && progress.total_lessons > 0 && (

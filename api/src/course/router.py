@@ -14,6 +14,7 @@ from src.course.dependencies import (
 )
 from src.course.models import Course, CoursePurchase, Lesson, Quiz, QuizAnswer
 from src.course.schemas import (
+    ActivityListResponse,
     CoursePurchaseCreate,
     CoursePurchaseResponse,
     CourseCreate,
@@ -73,6 +74,25 @@ async def get_course(
     session: AsyncSession = Depends(get_session),
 ) -> CourseResponse:
     return await service.get_course_response(session, course)
+
+
+@course_router.get(
+    "/{course_id}/activities",
+    response_model=ActivityListResponse,
+    summary="Get course activities",
+    description="Retrieve purchase, payback, and payout transactions for a course.",
+    responses={
+        status.HTTP_200_OK: {"description": "Activities returned successfully."},
+        status.HTTP_404_NOT_FOUND: {"description": "Course not found."},
+        status.HTTP_401_UNAUTHORIZED: {"description": "Not authenticated."},
+    },
+)
+async def get_course_activities(
+    course: Course = Depends(valid_course_id),
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> ActivityListResponse:
+    return await service.get_course_activities(session, course.id, current_user.id)
 
 
 @course_router.post(

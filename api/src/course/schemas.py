@@ -1,3 +1,4 @@
+import enum
 import uuid
 from datetime import datetime
 
@@ -25,6 +26,38 @@ class CourseResponse(BaseModel):
     )
     created_at: datetime = Field(description="Creation timestamp.")
     updated_at: datetime = Field(description="Last update timestamp.")
+
+
+# ---------------------------------------------------------------------------
+# Activities / Transactions
+# ---------------------------------------------------------------------------
+class ActivityType(str, enum.Enum):
+    PURCHASE = "purchase"
+    PAYBACK = "payback"
+    TEACHER_PAYOUT = "teacher_payout"
+
+
+class ActivityItem(BaseModel):
+    """A single activity item (transaction) for a course."""
+
+    id: uuid.UUID = Field(description="Unique identifier for the activity.")
+    type: ActivityType = Field(description="Type of activity.")
+    amount: float = Field(description="Amount in token units.")
+    transaction_hash: str = Field(description="On-chain transaction hash.")
+    timestamp: datetime = Field(description="Time of the activity.")
+    status: str = Field(default="completed", description="Status of the transaction.")
+    description: str = Field(description="Description of the activity.")
+    user_id: uuid.UUID = Field(description="User involved in the activity.")
+    subscan_link: str | None = Field(
+        default=None, description="Link to Subscan for this transaction."
+    )
+
+
+class ActivityListResponse(BaseModel):
+    """List of activities for a course."""
+
+    course_id: uuid.UUID = Field(description="Course ID.")
+    activities: list[ActivityItem] = Field(description="List of activities.")
 
 
 # ---------------------------------------------------------------------------
