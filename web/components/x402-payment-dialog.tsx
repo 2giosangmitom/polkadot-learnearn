@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useApi, useBalance, useAccount } from "@luno-kit/react";
 import { useSendTransaction } from "@luno-kit/react";
-import { useX402Store } from "@/lib/x402-agent";
+import { useX402Store } from "@/lib/x402";
 import {
   AlertDialog,
   AlertDialogContent,

@@ -12,7 +12,7 @@ import { WalletSync } from "@/components/wallet-sync";
 import { X402PaymentDialog } from "@/components/x402-payment-dialog";
 import { useAuthStore } from "@/lib/auth-store";
 import { connectAuthToApi, connectPaymentAgent } from "@/lib/api";
-import { useX402Store } from "@/lib/x402-agent";
+import { useX402Store } from "@/lib/x402";
 
 const queryClient = new QueryClient({
   defaultOptions: {
