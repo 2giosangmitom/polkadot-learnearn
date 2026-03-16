@@ -48,7 +48,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <LunoKitProvider
           config={walletConfig}
-          theme={{ autoMode: true, defaultMode: "dark" }}
+          theme={{
+            autoMode: false,
+            defaultMode: "light",
+            colors: {
+              accentColor: "var(--color-pink-400)",
+            },
+          }}
           appInfo={{
             description: "Learn blockchain development and earn crypto rewards",
           }}
