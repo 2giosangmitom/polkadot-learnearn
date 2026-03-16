@@ -172,6 +172,7 @@ export default function CourseDetailPage({
       });
 
       setPurchased(true);
+      setCoursePurchaseHash(receipt.transactionHash);
       toast.success(
         "Course purchased successfully! You can now access all lessons.",
       );
