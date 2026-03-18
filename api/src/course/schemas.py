@@ -17,6 +17,9 @@ class CourseResponse(BaseModel):
     title: str = Field(description="Course title.")
     description: str = Field(description="Course description.")
     price: float = Field(description="Course price.")
+    course_pool_address: str | None = Field(
+        default=None, description="Smart contract address of the course pool."
+    )
     author_id: uuid.UUID = Field(description="Author (teacher) ID.")
     author_wallet_address: str = Field(
         description="Wallet address of the author (teacher).",
@@ -142,6 +145,9 @@ class CourseCreate(BaseModel):
     title: str = Field(..., min_length=1, description="Course title.")
     description: str = Field(..., min_length=1, description="Course description.")
     price: float = Field(..., ge=0, description="Course price in token units.")
+    course_pool_address: str | None = Field(
+        default=None, description="Smart contract address of the course pool."
+    )
     lessons: list[LessonUpsert] = Field(
         default_factory=list,
         description="Full list of lessons for the course.",
@@ -158,6 +164,9 @@ class CourseUpdate(BaseModel):
     title: str = Field(..., min_length=1, description="Course title.")
     description: str = Field(..., min_length=1, description="Course description.")
     price: float = Field(..., ge=0, description="Course price in token units.")
+    course_pool_address: str | None = Field(
+        default=None, description="Smart contract address of the course pool."
+    )
     lessons: list[LessonUpsert] = Field(
         default_factory=list,
         description="Full list of lessons for the course (desired state).",
@@ -217,6 +226,9 @@ class CourseWithLessonsResponse(BaseModel):
     title: str = Field(description="Course title.")
     description: str = Field(description="Course description.")
     price: float = Field(description="Course price.")
+    course_pool_address: str | None = Field(
+        default=None, description="Smart contract address of the course pool."
+    )
     author_id: uuid.UUID = Field(description="Author (teacher) ID.")
     author_wallet_address: str = Field(
         description="Wallet address of the author (teacher).",

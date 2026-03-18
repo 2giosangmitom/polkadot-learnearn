@@ -70,6 +70,7 @@ def _course_to_response(
         title=course.title,
         description=course.description,
         price=course.price,
+        course_pool_address=course.course_pool_address,
         author_id=course.author_id,
         author_wallet_address=wallet_map.get(course.author_id, ""),
         platform_wallet_address=settings.PLATFORM_WALLET_ADDRESS,
@@ -184,6 +185,7 @@ async def _build_course_with_lessons_response(
         title=course.title,
         description=course.description,
         price=course.price,
+        course_pool_address=course.course_pool_address,
         author_id=course.author_id,
         author_wallet_address=wallet_map.get(course.author_id, ""),
         platform_wallet_address=settings.PLATFORM_WALLET_ADDRESS,
@@ -269,6 +271,7 @@ async def create_course_with_lessons(
         title=data.title,
         description=data.description,
         price=data.price,
+        course_pool_address=data.course_pool_address,
         author_id=author_id,
     )
     session.add(course)
@@ -330,6 +333,7 @@ async def update_course_with_lessons(
     course.title = data.title
     course.description = data.description
     course.price = data.price
+    course.course_pool_address = data.course_pool_address
     session.add(course)
 
     # Flush so that course changes are persisted
