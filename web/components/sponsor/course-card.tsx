@@ -1,13 +1,16 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Coins, DollarSign } from "lucide-react";
+import { Coins, DollarSign, TrendingUp, Users } from "lucide-react";
 import { Badge } from "../ui/badge";
+import { useWalletProvider } from "@/hooks/use-wallet-provider";
+import { useCoursePool } from "@/hooks/use-course-pool";
 
 export interface Course {
   id: string;
   title: string;
   description: string;
   price: number;
+  course_pool_address?: string | null;
   author_id: string;
   author_wallet_address: string;
   platform_wallet_address: string;
@@ -21,6 +24,9 @@ interface CourseCardProps {
 }
 
 export function CourseCard({ course, onSponsor }: CourseCardProps) {
+  const { signer, metamaskAddress, connect, isCorrectNetwork, switchNetwork } = useWalletProvider();
+  const { poolData } = useCoursePool(course.course_pool_address);
+  
   return (
     <Card className="relative group hover:shadow-xl transition-all duration-300">
       <CardHeader className="pb-4">
@@ -40,6 +46,53 @@ export function CourseCard({ course, onSponsor }: CourseCardProps) {
         <p className="text-sm text-muted-foreground line-clamp-3">
           {course.description}
         </p>
+
+        {/* Pool Balance Display */}
+        {course.course_pool_address && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between p-2 bg-primary/5 rounded-lg">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium">Total Investment</span>
+              </div>
+              <div className="flex items-center gap-1">
+                {poolData.loading ? (
+                  <div className="animate-pulse">
+                    <div className="h-4 bg-muted rounded w-16"></div>
+                  </div>
+                ) : poolData.error ? (
+                  <Badge variant="destructive" className="text-xs">
+                    Error
+                  </Badge>
+                ) : poolData.poolBalance ? (
+                  <Badge variant="secondary" className="bg-primary/10 text-primary">
+                    {parseFloat(poolData.poolBalance.formatted).toFixed(4)} PAS
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-xs">
+                    0 ETH
+                  </Badge>
+                )}
+              </div>
+            </div>
+
+            {/* Sponsor Count */}
+            {!poolData.loading && poolData.sponsors.length > 0 && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Users className="h-3 w-3" />
+                <span>{poolData.sponsors.length} sponsor transaction{poolData.sponsors.length !== 1 ? 's' : ''}</span>
+              </div>
+            )}
+
+            {course.course_pool_address && (
+              <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                <span className="font-medium">Pool Address:</span>
+                <br />
+                <code className="break-all">{course.course_pool_address}</code>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="pt-2 border-t">
           <div className="flex items-center justify-between mb-3">

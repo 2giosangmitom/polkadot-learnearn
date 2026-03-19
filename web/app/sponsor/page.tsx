@@ -6,6 +6,9 @@ import { CourseGrid } from "@/components/sponsor/course-grid";
 import { SponsorModal } from "@/components/sponsor/sponsor-modal";
 import { CTASection } from "@/components/sponsor/cta-section";
 import { Course } from "@/components/sponsor/course-card";
+import { useWalletProvider } from "@/hooks/use-wallet-provider";
+import { sponsorCoursePool } from "@/helper/course-pool";
+import { toast } from "sonner";
 
 export default function SponsorPage() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -15,7 +18,7 @@ export default function SponsorPage() {
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-
+const { signer, metamaskAddress, connect, isCorrectNetwork, switchNetwork } = useWalletProvider();
   useEffect(() => {
     const fetchCourses = async () => {
       try {
@@ -52,6 +55,19 @@ export default function SponsorPage() {
   // Handle sponsor modal
   const handleSponsorClick = (course: Course) => {
     setSelectedCourse(course);
+      const handleSponsorClick = () => {
+    try {
+    if (!signer) {
+      connect();
+      const res = sponsorCoursePool(course.course_pool_address!, metamaskAddress!);
+      toast.success("Sponsorship successful!");
+      return;
+    }
+    } catch (error) {
+      console.error("Error sponsoring course pool:", error);
+      toast.error("Failed to sponsor course: " + (error instanceof Error ? error.message : "Unknown error"));
+    }
+  }
     setIsModalOpen(true);
   };
 

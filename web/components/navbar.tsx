@@ -16,61 +16,52 @@ import {
   Wallet,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { RainbowButton } from "./ui/rainbow-button";
-
-function useWindowEthereum() {
-  const [address, setAddress] = useState<string | null>(null);
-  const [isConnecting, setIsConnecting] = useState(false);
-
-  useEffect(() => {
-    const eth = (window as any).ethereum;
-    if (!eth) return;
-    eth.request({ method: "eth_accounts" }).then((accounts: string[]) => {
-      if (accounts[0]) setAddress(accounts[0]);
-    });
-    eth.on("accountsChanged", (accounts: string[]) => {
-      setAddress(accounts[0] ?? null);
-    });
-  }, []);
-
-  const connect = useCallback(async () => {
-    const eth = (window as any).ethereum;
-    if (!eth) return alert("Please install MetaMask!");
-    setIsConnecting(true);
-    try {
-      const accounts = await eth.request({ method: "eth_requestAccounts" });
-      setAddress(accounts[0]);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsConnecting(false);
-    }
-  }, []);
-
-  const disconnect = useCallback(() => setAddress(null), []);
-
-  return { address, isConnecting, connect, disconnect };
-}
+import { useWalletProvider } from "@/hooks/use-wallet-provider";
 
 function SponsorConnectButton() {
-  const { address, isConnecting, connect, disconnect } = useWindowEthereum();
+  const { metamaskAddress, isConnected, connect, disconnect, isCorrectNetwork, switchNetwork } = useWalletProvider();
+  const [isSwitching, setIsSwitching] = useState(false);
 
-  if (address) {
+  const handleSwitchNetwork = async () => {
+    setIsSwitching(true);
+    try {
+      await switchNetwork();
+    } catch (error) {
+      console.error('Switch network error:', error);
+    } finally {
+      setIsSwitching(false);
+    }
+  };
+
+  if (isConnected && metamaskAddress) {
     return (
-      <Button variant="outline" size="sm" className="gap-2" onClick={disconnect}>
-        <Wallet className="h-4 w-4" />
-        {address.slice(0, 6)}...{address.slice(-4)}
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button variant="outline" size="sm" className="gap-2" onClick={disconnect}>
+          <Wallet className="h-4 w-4" />
+          {metamaskAddress.slice(0, 6)}...{metamaskAddress.slice(-4)}
+        </Button>
+        {!isCorrectNetwork && (
+          <Button 
+            size="sm" 
+            variant="destructive" 
+            onClick={handleSwitchNetwork}
+            disabled={isSwitching}
+          >
+            {isSwitching ? "Switching..." : "Switch Network"}
+          </Button>
+        )}
+      </div>
     );
   }
 
   return (
-    <Button size="sm" className="gap-2" onClick={connect} disabled={isConnecting}>
+    <Button size="sm" className="gap-2" onClick={connect}>
       <Wallet className="h-4 w-4" />
-      {isConnecting ? "Connecting..." : "Connect Wallet"}
+      Connect Wallet
     </Button>
   );
 }
@@ -82,10 +73,9 @@ export function Navbar() {
   const user = useAuthStore((s) => s.user);
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-
   useEffect(() => setMounted(true), []);
 
-  const isSponsorPage = pathname === "/sponsor";
+  const isSponsorPage = pathname === "/sponsor"; 
 
   const isConnected = status === "connected" && !!address;
   const needsOnboarding = isConnected && !user;
