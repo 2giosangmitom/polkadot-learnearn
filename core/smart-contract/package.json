@@ -29,7 +29,7 @@
   "author": "Polkadot",
   "license": "MIT",
   "devDependencies": {
-    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@nomicfoundation/hardhat-toolbox": "^7.0.0",
     "@parity/hardhat-polkadot": "^0.1.9",
     "@parity/resolc": "^0.2.0",
     "@types/node": "^24.10.1",
