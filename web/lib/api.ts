@@ -124,6 +124,7 @@ export interface CourseCreate {
   description: string;
   price: number;
   lessons: LessonUpsert[];
+  course_pool_address: string | null;
 }
 
 export interface CourseUpdate {

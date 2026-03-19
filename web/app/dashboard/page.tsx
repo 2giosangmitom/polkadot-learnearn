@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { deployPoolCourse } from "@/hooks/use-deploy-pool";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -477,22 +478,45 @@ export default function DashboardPage() {
         _refreshFromResponse(result);
         toast.success("Course updated!");
       } else {
-        // Create new course (author_id inferred from JWT)
+        // Create new course
+        let poolAddress: string | undefined;
+
+        // Step 1: Deploy pool contract via API (admin wallet on server)
+        try {
+          toast.loading("Deploying course pool contract...");
+          
+          const deployResult = await deployPoolCourse(courseTitle.trim());
+          
+          poolAddress = deployResult.poolAddress;
+          toast.dismiss();
+          toast.success(`Pool deployed: ${poolAddress.slice(0, 6)}...${poolAddress.slice(-4)}`);
+        } catch (error) {
+          toast.dismiss();
+          console.error("Failed to deploy pool:", error);
+          toast.error("Failed to deploy pool contract. Course will be created without pool.");
+        }
+
+        // Step 2: Create course with pool address
         const createData: CourseCreate = {
           title: courseTitle.trim(),
           description: courseDescription.trim(),
           price: coursePrice,
+          course_pool_address: poolAddress || null,
           lessons,
         };
+        
         const result = await coursesApi.create(createData);
-        // Switch to edit mode and refresh local state with server-assigned IDs
-        setEditingCourseId(result.id);
-        _refreshFromResponse(result);
-        toast.success("Course created!");
+        
+        if (poolAddress) {
+          toast.success("Course created with pool contract!");
+        } else {
+          toast.success("Course created!");
+        }
+        
+        // Reload courses and go back to list view
+        await loadCourses();
+        setView("list");
       }
-
-      // Stay in editor (don't go back to list) so user can continue editing
-      await loadCourses();
     } catch {
       toast.error("Failed to save course.");
     } finally {
