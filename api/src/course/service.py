@@ -70,6 +70,7 @@ def _course_to_response(
         title=course.title,
         description=course.description,
         price=course.price,
+        course_pool_address=course.course_pool_address,
         author_id=course.author_id,
         author_wallet_address=wallet_map.get(course.author_id, ""),
         platform_wallet_address=settings.PLATFORM_WALLET_ADDRESS,
@@ -184,6 +185,7 @@ async def _build_course_with_lessons_response(
         title=course.title,
         description=course.description,
         price=course.price,
+        course_pool_address=course.course_pool_address,
         author_id=course.author_id,
         author_wallet_address=wallet_map.get(course.author_id, ""),
         platform_wallet_address=settings.PLATFORM_WALLET_ADDRESS,
@@ -260,15 +262,41 @@ async def create_course_with_lessons(
 
     The ``author_id`` comes from the authenticated user's JWT (not from the request body).
     Validates that total paybacks + platform fee do not exceed the course price.
+    
+    If ``course_pool_address`` is provided in the request, it will be used.
+    Otherwise, automatically creates a PoolCourse contract via the factory.
     """
     # Validate economics
     _validate_course_economics(data.price, data.lessons)
+
+    # Determine pool address
+    pool_address: str | None = data.course_pool_address
+    
+    # If no pool address provided, create one automatically
+    if not pool_address:
+        logger.info("No course_pool_address provided, creating new pool via factory...")
+        try:
+            from src.course.contract import get_factory_client
+            import asyncio
+
+            factory_client = get_factory_client()
+            # Run sync function in thread pool to avoid blocking
+            pool_address = await asyncio.to_thread(factory_client.create_pool, data.title)
+            logger.info("Created PoolCourse contract at %s for course '%s'", pool_address, data.title)
+        except Exception as e:
+            logger.error("Failed to create PoolCourse contract: %s", e, exc_info=True)
+            # Continue without pool address - can be added later
+            logger.warning("Course will be created without pool address")
+            pool_address = None
+    else:
+        logger.info("Using provided course_pool_address: %s", pool_address)
 
     course = Course(
         id=uuid.uuid4(),
         title=data.title,
         description=data.description,
         price=data.price,
+        course_pool_address=pool_address,
         author_id=author_id,
     )
     session.add(course)
@@ -330,6 +358,7 @@ async def update_course_with_lessons(
     course.title = data.title
     course.description = data.description
     course.price = data.price
+    course.course_pool_address = data.course_pool_address
     session.add(course)
 
     # Flush so that course changes are persisted

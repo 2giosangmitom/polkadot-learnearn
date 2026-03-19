@@ -1,0 +1,14 @@
+{
+  "network": "polkadotHubTestnet",
+  "deployer": "0xEc96d546802D1c9A8d31722FE6d7BBC8aaE318a2",
+  "deployerBalance": "4999.99",
+  "contracts": {
+    "PoolCourseFactory": {
+      "address": "0x62Bdb9A8Fed36e22272CA96661eB3F600e8f8F13",
+      "owner": "0xEc96d546802D1c9A8d31722FE6d7BBC8aaE318a2",
+      "totalPools": "0"
+    }
+  },
+  "deploymentTime": "2026-03-17T03:33:23.664Z",
+  "blockNumber": 6490399
+}

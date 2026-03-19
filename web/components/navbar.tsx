@@ -13,12 +13,58 @@ import {
   Moon,
   Sun,
   Menu,
+  Wallet,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { RainbowButton } from "./ui/rainbow-button";
+import { useWalletProvider } from "@/hooks/use-wallet-provider";
+
+function SponsorConnectButton() {
+  const { metamaskAddress, isConnected, connect, disconnect, isCorrectNetwork, switchNetwork } = useWalletProvider();
+  const [isSwitching, setIsSwitching] = useState(false);
+
+  const handleSwitchNetwork = async () => {
+    setIsSwitching(true);
+    try {
+      await switchNetwork();
+    } catch (error) {
+      console.error('Switch network error:', error);
+    } finally {
+      setIsSwitching(false);
+    }
+  };
+
+  if (isConnected && metamaskAddress) {
+    return (
+      <div className="flex items-center gap-2">
+        <Button variant="outline" size="sm" className="gap-2" onClick={disconnect}>
+          <Wallet className="h-4 w-4" />
+          {metamaskAddress.slice(0, 6)}...{metamaskAddress.slice(-4)}
+        </Button>
+        {!isCorrectNetwork && (
+          <Button 
+            size="sm" 
+            variant="destructive" 
+            onClick={handleSwitchNetwork}
+            disabled={isSwitching}
+          >
+            {isSwitching ? "Switching..." : "Switch Network"}
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <Button size="sm" className="gap-2" onClick={connect}>
+      <Wallet className="h-4 w-4" />
+      Connect Wallet
+    </Button>
+  );
+}
 
 export function Navbar() {
   const pathname = usePathname();
@@ -27,8 +73,9 @@ export function Navbar() {
   const user = useAuthStore((s) => s.user);
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-
   useEffect(() => setMounted(true), []);
+
+  const isSponsorPage = pathname === "/sponsor"; 
 
   const isConnected = status === "connected" && !!address;
   const needsOnboarding = isConnected && !user;
@@ -47,11 +94,7 @@ export function Navbar() {
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2.5 group">
           <div className="flex h-20 w-20 items-center justify-center text-primary-foreground transition-transform group-hover:scale-105">
-            <img
-              src="/logo-removebg.png"
-              alt="Learn & Earn"
-              className="w-full"
-            />
+            <img src="/logo-removebg.png" alt="Learn & Earn" className="w-full" />
           </div>
           <span className="hidden font-bold text-lg sm:block">
             Learn<span className="text-primary">&</span>Earn
@@ -65,10 +108,7 @@ export function Navbar() {
               <Button
                 variant={pathname === link.href ? "secondary" : "ghost"}
                 size="sm"
-                className={cn(
-                  "gap-2",
-                  pathname === link.href && "bg-secondary font-medium",
-                )}
+                className={cn("gap-2", pathname === link.href && "bg-secondary font-medium")}
               >
                 <link.icon className="h-4 w-4" />
                 {link.label}
@@ -79,7 +119,6 @@ export function Navbar() {
 
         {/* Right section */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Onboarding nudge */}
           {needsOnboarding && (
             <Link href="/onboarding">
               <Button size="sm" className="hidden sm:flex gap-2 animate-pulse">
@@ -89,14 +128,14 @@ export function Navbar() {
             </Link>
           )}
 
-          {/* Role info */}
-          {!user ? null : user.role === "Teacher" ? (
+          {isSponsorPage ? (
+            <RainbowButton variant="outline">Sponsor</RainbowButton>
+          ) : !user ? null : user.role === "Teacher" ? (
             <RainbowButton variant="outline">Teacher</RainbowButton>
           ) : (
             <RainbowButton variant="outline">Student</RainbowButton>
           )}
 
-          {/* Theme toggle */}
           {mounted && (
             <Button
               variant="ghost"
@@ -104,20 +143,15 @@ export function Navbar() {
               className="h-9 w-9"
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             >
-              {theme === "dark" ? (
-                <Sun className="h-4 w-4" />
-              ) : (
-                <Moon className="h-4 w-4" />
-              )}
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
           )}
 
-          {/* Wallet */}
-          <ConnectButton
-            label="Connect Wallet"
-            showBalance
-            chainStatus="icon"
-          />
+          {isSponsorPage ? (
+            <SponsorConnectButton />
+          ) : (
+            <ConnectButton label="Connect Wallet" showBalance chainStatus="icon" />
+          )}
 
           {/* Mobile menu */}
           <Sheet>

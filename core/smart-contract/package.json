@@ -1,0 +1,47 @@
+{
+  "name": "hardhat-polkadot-starter",
+  "version": "1.0.0",
+  "description": "A starter template for developing smart contracts on Polkadot Hub using Hardhat",
+  "main": "index.js",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "test:coverage": "hardhat coverage",
+    "node": "hardhat node",
+    "deploy": "hardhat run scripts/deploy.js",
+    "deploy:testnet": "hardhat run scripts/deploy-testnet.js --network polkadotHubTestnet",
+    "deploy:local": "hardhat run scripts/deploy.js --network localNode",
+    "interact": "hardhat run scripts/interact.js",
+    "interact:testnet": "hardhat run scripts/interact.js --network polkadotHubTestnet",
+    "interact:local": "hardhat run scripts/interact.js --network localNode",
+    "format": "prettier --write \"**/*.js\"",
+    "format:check": "prettier --check \"**/*.js\"",
+    "clean": "hardhat clean",
+    "size": "hardhat size-contracts"
+  },
+  "keywords": [
+    "hardhat",
+    "polkadot",
+    "smart-contracts",
+    "solidity",
+    "polkavm"
+  ],
+  "author": "Polkadot",
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@parity/hardhat-polkadot": "^0.1.9",
+    "@parity/resolc": "^0.2.0",
+    "@types/node": "^24.10.1",
+    "dockerode": "^4.0.9",
+    "dotenv": "^17.2.3",
+    "hardhat": "^2.22.0",
+    "prompts": "^2.4.2",
+    "solc": "0.8.26",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "viem": "^2.23.6",
+    "@openzeppelin/contracts": "^5.0.0"
+  }
+}

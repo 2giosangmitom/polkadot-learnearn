@@ -19,6 +19,11 @@ class Course(SQLModel, table=True):
     title: str = Field(sa_column=sa.Column(sa.Text, nullable=False))
     description: str = Field(sa_column=sa.Column(sa.Text, nullable=False))
     price: float
+    course_pool_address: str | None = Field(
+        default=None,
+        sa_column=sa.Column(sa.Text, nullable=True),
+        description="Smart contract address of the course pool"
+    )
     created_at: datetime | None = Field(
         default=None,
         sa_column=sa.Column(sa.DateTime, nullable=False, server_default=sa.func.now()),
