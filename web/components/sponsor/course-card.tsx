@@ -5,6 +5,7 @@ import { Badge } from "../ui/badge";
 import { useWalletProvider } from "@/hooks/use-wallet-provider";
 import { useCoursePool } from "@/hooks/use-course-pool";
 import { useEffect } from "react";
+import { DescriptionRenderer } from "@/components/description-renderer";
 
 export interface Course {
   id: string;
@@ -52,9 +53,9 @@ export function CourseCard({ course, onSponsor, refreshTrigger }: CourseCardProp
       </CardHeader>
 
       <CardContent className="space-y-4">
-        <p className="text-sm text-muted-foreground line-clamp-3">
-          {course.description}
-        </p>
+        <div className="text-sm text-muted-foreground">
+          <DescriptionRenderer html={course.description} className="line-clamp-3" />
+        </div>
 
         {/* Pool Balance Display */}
         {course.course_pool_address && (
