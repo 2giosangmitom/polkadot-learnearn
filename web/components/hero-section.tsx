@@ -71,6 +71,16 @@ export function HeroSection() {
               Get Started
             </ShimmerButton>
           </Link>
+          <Link href="/sponsor">
+            <ShimmerButton
+              className="h-12 px-8 text-base font-semibold text-black dark:text-white"
+              shimmerColor="#ffffff"
+              background="transparent"
+              shimmerSize="0.08em"
+            >
+              Sponsor
+            </ShimmerButton>
+          </Link>
         </div>
       </div>
 

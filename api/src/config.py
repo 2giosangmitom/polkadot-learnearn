@@ -2,7 +2,7 @@ from pydantic_settings import BaseSettings
 
 
 class Config(BaseSettings):
-    DATABASE_URL: str = "postgresql+psycopg://localhost:5432/polkadot_learnearn"
+    DATABASE_URL: str = "postgresql+asyncpg://localhost:5432/polkadot_learnearn"
 
     # AI settings
     AI_PROVIDER: str = "gemini"

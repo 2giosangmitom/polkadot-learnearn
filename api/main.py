@@ -3,7 +3,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import SQLModel
-from sqlalchemy import MetaData
 
 # Import database first to set naming conventions before models register
 from src.database import engine  # noqa: F401
@@ -31,7 +30,7 @@ from src.course.router import (
 )
 from src.x402.middleware import add_x402_support
 
-SQLModel.metadata = MetaData(schema="public")
+SQLModel.metadata.schema = "public"
 
 
 @asynccontextmanager
