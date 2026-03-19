@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   BrowserProvider,
   JsonRpcProvider,
@@ -31,22 +31,30 @@ export function useWalletProvider(): UseWalletReturn {
   const [metamaskAddress, setAddress] = useState<string | null>(null);
   const [chainId, setChainId] = useState<number | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [isSwitchingNetwork, setIsSwitchingNetwork] = useState(false);
 
-  // Create a read-only provider for the default network
-  const readOnlyProvider = new JsonRpcProvider(DEFAULT_NETWORK.rpcUrl);
+  // Create a read-only provider for the default network (memoized to prevent recreating)
+  const readOnlyProvider = useMemo(() => new JsonRpcProvider(DEFAULT_NETWORK.rpcUrl), []);
 
   // Check if current network is supported
   const isCorrectNetwork = chainId ? isSupportedNetwork(chainId) : false;
 
   // Switch to the correct network
   const switchNetwork = useCallback(async () => {
+    // Prevent multiple simultaneous switch requests
+    if (isSwitchingNetwork) {
+      console.log('Network switch already in progress, skipping...');
+      return;
+    }
+
     console.log('Attempting to switch network...');
     
     if (!window.ethereum) {
       console.error('No ethereum provider found');
-      alert("Please install MetaMask!");
-      return;
+      throw new Error("Please install MetaMask!");
     }
+
+    setIsSwitchingNetwork(true);
 
     try {
       console.log('Switching to chain ID:', DEFAULT_NETWORK.chainId);
@@ -80,17 +88,20 @@ export function useWalletProvider(): UseWalletReturn {
           console.log('Network added successfully');
         } catch (addError) {
           console.error('Failed to add network:', addError);
-          alert(`Failed to add network: ${addError instanceof Error ? addError.message : 'Unknown error'}`);
+          throw new Error(`Failed to add network: ${addError instanceof Error ? addError.message : 'Unknown error'}`);
         }
       } else if (switchError.code === 4001) {
         // User rejected the request
         console.log('User rejected network switch');
+        throw new Error('User rejected network switch');
       } else {
         console.error('Unexpected switch error:', switchError);
-        alert(`Failed to switch network: ${switchError.message || 'Unknown error'}`);
+        throw new Error(`Failed to switch network: ${switchError.message || 'Unknown error'}`);
       }
+    } finally {
+      setIsSwitchingNetwork(false);
     }
-  }, []);
+  }, [isSwitchingNetwork]);
 
   // Connect wallet
   const connect = useCallback(async () => {
@@ -124,17 +135,13 @@ export function useWalletProvider(): UseWalletReturn {
 
   // Disconnect wallet
   const disconnect = useCallback(() => {
-    setProvider(readOnlyProvider);
     setSigner(null);
     setAddress(null);
     setChainId(null);
     setIsConnected(false);
-  }, [readOnlyProvider]);
+  }, []);
 
   useEffect(() => {
-    // Set read-only provider by default
-    setProvider(readOnlyProvider);
-
     if (!window.ethereum) return;
 
     // Check if already connected
@@ -162,7 +169,7 @@ export function useWalletProvider(): UseWalletReturn {
     checkConnection();
 
     // Listen for account changes
-    window.ethereum.on("accountsChanged", (accounts: string[]) => {
+    const handleAccountsChanged = (accounts: string[]) => {
       if (accounts.length === 0) {
         disconnect();
       } else {
@@ -172,10 +179,10 @@ export function useWalletProvider(): UseWalletReturn {
           connect();
         }
       }
-    });
+    };
 
     // Listen for chain changes
-    window.ethereum.on("chainChanged", (chainIdHex: string) => {
+    const handleChainChanged = (chainIdHex: string) => {
       const newChainId = parseInt(chainIdHex, 16);
       setChainId(newChainId);
       
@@ -184,13 +191,16 @@ export function useWalletProvider(): UseWalletReturn {
         const browserProvider = new BrowserProvider(window.ethereum);
         setProvider(browserProvider);
       }
-    });
+    };
+
+    window.ethereum.on("accountsChanged", handleAccountsChanged);
+    window.ethereum.on("chainChanged", handleChainChanged);
 
     return () => {
-      window.ethereum?.removeAllListeners?.("accountsChanged");
-      window.ethereum?.removeAllListeners?.("chainChanged");
+      window.ethereum?.removeListener?.("accountsChanged", handleAccountsChanged);
+      window.ethereum?.removeListener?.("chainChanged", handleChainChanged);
     };
-  }, [readOnlyProvider, disconnect, connect, isConnected]);
+  }, []); // Empty dependency array - only run once on mount
 
   return { 
     provider, 

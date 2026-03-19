@@ -18,11 +18,11 @@ export const NETWORKS: Record<string, NetworkConfig> = {
   polkadotHubTestnet: {
     name: 'Polkadot Hub Testnet',
     chainId: 420420417,
-    rpcUrl: 'https://eth-rpc-testnet.polkadot.io',
+    rpcUrl: 'https://services.polkadothub-rpc.com/testnet',
     blockExplorer: 'https://polkadot-hub-testnet.blockscout.com',
     nativeCurrency: {
-      name: 'Ether',
-      symbol: 'ETH',
+      name: 'PAS',
+      symbol: 'PAS',
       decimals: 18,
     },
   },

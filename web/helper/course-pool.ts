@@ -64,10 +64,11 @@ export async function getCourseNameFromContract(
 
 export async function sponsorCoursePool(
   coursePoolAddress: string,
-  sponsorAddress: string
-): Promise<void> {
-  const contract = new Contract(coursePoolAddress, POOL_COURSE_ABI, publicProvider);
-  const tx = await contract.sponsor({ from: sponsorAddress });
+  signer: any,
+  amount: string
+): Promise<any> {
+  const contract = new Contract(coursePoolAddress, POOL_COURSE_ABI, signer);
+  const tx = await contract.sponsor({ value: amount });
   await tx.wait();
   return tx;
 }

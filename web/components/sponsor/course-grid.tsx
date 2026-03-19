@@ -7,9 +7,10 @@ interface CourseGridProps {
   loading: boolean;
   error: string | null;
   onSponsor: (course: Course) => void;
+  refreshTrigger?: number;
 }
 
-export function CourseGrid({ courses, loading, error, onSponsor }: CourseGridProps) {
+export function CourseGrid({ courses, loading, error, onSponsor, refreshTrigger }: CourseGridProps) {
   if (loading) {
     return (
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -62,6 +63,7 @@ export function CourseGrid({ courses, loading, error, onSponsor }: CourseGridPro
           key={course.id}
           course={course}
           onSponsor={onSponsor}
+          refreshTrigger={refreshTrigger}
         />
       ))}
     </div>

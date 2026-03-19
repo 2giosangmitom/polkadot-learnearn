@@ -18,7 +18,10 @@ export default function SponsorPage() {
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-const { signer, metamaskAddress, connect, isCorrectNetwork, switchNetwork } = useWalletProvider();
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  
+  const { signer, metamaskAddress, connect, isCorrectNetwork, switchNetwork } = useWalletProvider();
   useEffect(() => {
     const fetchCourses = async () => {
       try {
@@ -53,33 +56,90 @@ const { signer, metamaskAddress, connect, isCorrectNetwork, switchNetwork } = us
   };
 
   // Handle sponsor modal
-  const handleSponsorClick = (course: Course) => {
-    setSelectedCourse(course);
-      const handleSponsorClick = () => {
-    try {
-    if (!signer) {
-      connect();
-      const res = sponsorCoursePool(course.course_pool_address!, metamaskAddress!);
-      toast.success("Sponsorship successful!");
+  const handleSponsorClick = async (course: Course) => {
+    // Prevent multiple clicks
+    if (isProcessing) {
       return;
     }
+
+    setIsProcessing(true);
+
+    try {
+      if (!signer) {
+        toast.error("Please connect your wallet first");
+        try {
+          await connect();
+        } catch (error) {
+          console.error("Failed to connect:", error);
+        }
+        return;
+      }
+
+      if (!isCorrectNetwork) {
+        toast.info("Switching to correct network...");
+        try {
+          await switchNetwork();
+          // Wait a bit for network to switch
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (error) {
+          console.error("Failed to switch network:", error);
+          toast.error("Please switch to the correct network manually");
+          return;
+        }
+      }
+
+      setSelectedCourse(course);
+      setIsModalOpen(true);
+    } finally {
+      // Reset processing state after a short delay
+      setTimeout(() => setIsProcessing(false), 500);
+    }
+  };
+
+  const handleSponsorSubmit = async (course: Course, amount: string) => {
+    if (!signer || !metamaskAddress) {
+      toast.error("Please connect your wallet first");
+      return;
+    }
+
+    if (!isCorrectNetwork) {
+      toast.error("Please switch to the correct network");
+      return;
+    }
+
+    if (!course.course_pool_address) {
+      toast.error("Course pool address not found");
+      return;
+    }
+
+    if (!amount || parseFloat(amount) <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+
+    try {
+      const loadingToast = toast.loading("Processing sponsorship...");
+      
+      // Convert amount to wei (assuming amount is in ETH/PAS)
+      const { parseEther } = await import("ethers");
+      const amountInWei = parseEther(amount);
+      
+      await sponsorCoursePool(
+        course.course_pool_address,
+        signer,
+        amountInWei.toString()
+      );
+      
+      toast.dismiss(loadingToast);
+      toast.success(`Successfully sponsored ${course.title} with ${amount} PAS!`);
+      setIsModalOpen(false);
+      
+      // Trigger refresh for all course cards
+      setRefreshTrigger(prev => prev + 1);
     } catch (error) {
       console.error("Error sponsoring course pool:", error);
       toast.error("Failed to sponsor course: " + (error instanceof Error ? error.message : "Unknown error"));
     }
-  }
-    setIsModalOpen(true);
-  };
-
-  const handleSponsorSubmit = async (course: Course, amount: string) => {
-    // Here you would integrate with your smart contract or API
-    console.log('Sponsoring course:', course.id, 'with amount:', amount);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Show success message (you could add a toast notification here)
-    alert(`Successfully sponsored ${course.title} with ${amount} PAS!`);
   };
 
   return (
@@ -103,6 +163,7 @@ const { signer, metamaskAddress, connect, isCorrectNetwork, switchNetwork } = us
             loading={loading}
             error={error}
             onSponsor={handleSponsorClick}
+            refreshTrigger={refreshTrigger}
           />
         </div>
       </section>

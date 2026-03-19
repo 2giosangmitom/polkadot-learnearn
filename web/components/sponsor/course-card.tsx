@@ -4,6 +4,7 @@ import { Coins, DollarSign, TrendingUp, Users } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { useWalletProvider } from "@/hooks/use-wallet-provider";
 import { useCoursePool } from "@/hooks/use-course-pool";
+import { useEffect } from "react";
 
 export interface Course {
   id: string;
@@ -21,11 +22,19 @@ export interface Course {
 interface CourseCardProps {
   course: Course;
   onSponsor: (course: Course) => void;
+  refreshTrigger?: number;
 }
 
-export function CourseCard({ course, onSponsor }: CourseCardProps) {
+export function CourseCard({ course, onSponsor, refreshTrigger }: CourseCardProps) {
   const { signer, metamaskAddress, connect, isCorrectNetwork, switchNetwork } = useWalletProvider();
-  const { poolData } = useCoursePool(course.course_pool_address);
+  const { poolData, refreshData } = useCoursePool(course.course_pool_address);
+
+  // Refresh pool data when refreshTrigger changes
+  useEffect(() => {
+    if (refreshTrigger !== undefined && refreshTrigger > 0) {
+      refreshData();
+    }
+  }, [refreshTrigger, refreshData]);
   
   return (
     <Card className="relative group hover:shadow-xl transition-all duration-300">
@@ -52,8 +61,7 @@ export function CourseCard({ course, onSponsor }: CourseCardProps) {
           <div className="space-y-2">
             <div className="flex items-center justify-between p-2 bg-primary/5 rounded-lg">
               <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium">Total Investment</span>
+                <span className="text-sm font-medium">Total Pool</span>
               </div>
               <div className="flex items-center gap-1">
                 {poolData.loading ? (
@@ -66,7 +74,7 @@ export function CourseCard({ course, onSponsor }: CourseCardProps) {
                   </Badge>
                 ) : poolData.poolBalance ? (
                   <Badge variant="secondary" className="bg-primary/10 text-primary">
-                    {parseFloat(poolData.poolBalance.formatted).toFixed(4)} PAS
+                    {parseFloat(poolData.poolBalance.formatted).toFixed(2)} PAS
                   </Badge>
                 ) : (
                   <Badge variant="outline" className="text-xs">
@@ -80,17 +88,10 @@ export function CourseCard({ course, onSponsor }: CourseCardProps) {
             {!poolData.loading && poolData.sponsors.length > 0 && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Users className="h-3 w-3" />
-                <span>{poolData.sponsors.length} sponsor transaction{poolData.sponsors.length !== 1 ? 's' : ''}</span>
+                <span>{poolData.sponsors.length} Sponsors{poolData.sponsors.length !== 1 ? 's' : ''}</span>
               </div>
             )}
 
-            {course.course_pool_address && (
-              <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
-                <span className="font-medium">Pool Address:</span>
-                <br />
-                <code className="break-all">{course.course_pool_address}</code>
-              </div>
-            )}
           </div>
         )}
 
@@ -108,7 +109,11 @@ export function CourseCard({ course, onSponsor }: CourseCardProps) {
           <Button
             className="w-full group-hover:bg-primary/90 transition-colors"
             size="sm"
-            onClick={() => onSponsor(course)}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onSponsor(course);
+            }}
           >
             <DollarSign className="h-4 w-4 mr-2" />
             Sponsor This Course

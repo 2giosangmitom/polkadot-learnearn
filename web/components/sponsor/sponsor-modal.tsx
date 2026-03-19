@@ -55,7 +55,7 @@ export function SponsorModal({ isOpen, onClose, course, onSponsor }: SponsorModa
             Sponsor Course
           </DialogTitle>
           <DialogDescription>
-            Invest in <span className="font-semibold text-foreground">{course.title}</span>
+            Sponsor in <span className="font-semibold text-foreground">{course.title}</span>
           </DialogDescription>
         </DialogHeader>
 
@@ -91,7 +91,7 @@ export function SponsorModal({ isOpen, onClose, course, onSponsor }: SponsorModa
           {sponsorAmount && Number(sponsorAmount) > 0 && (
             <div className="rounded-lg border bg-primary/5 p-4 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Your Investment</span>
+                <span className="text-sm text-muted-foreground">Your Sponsor</span>
                 <span className="font-semibold">{Number(sponsorAmount).toLocaleString()} PAS</span>
               </div>
             </div>
