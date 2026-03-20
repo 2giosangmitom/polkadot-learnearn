@@ -30,20 +30,31 @@ This project implements x402 V2 with Polkadot-specific adaptations:
 
 ### x402 Flow in This Project
 
-```
-User requests lesson → Server returns 402 + PAYMENT-REQUIRED
-    ↓
-Frontend shows payment dialog with course price & wallet address
-    ↓
-User signs transaction in Polkadot wallet
-    ↓
-Frontend retries request with PAYMENT-SIGNATURE (tx hash)
-    ↓
-Server verifies on-chain payment via Polkadot RPC
-    ↓
-Server settles: records purchase, splits fees, pays creator
-    ↓
-Server grants access + returns PAYMENT-RESPONSE
+```mermaid
+sequenceDiagram
+    actor User
+    participant Frontend
+    participant Server
+    participant Wallet as Polkadot Wallet
+    participant RPC as Polkadot RPC
+
+    User->>Frontend: Request lesson
+    Frontend->>Server: GET /lesson/:id
+    Server-->>Frontend: 402 Payment Required + payment details
+
+    Frontend->>User: Show payment dialog (price + wallet address)
+    User->>Wallet: Sign transaction
+    Wallet-->>User: Transaction hash (tx hash)
+
+    User->>Frontend: Confirm payment
+    Frontend->>Server: Retry request + PAYMENT-SIGNATURE (tx hash)
+
+    Server->>RPC: Verify on-chain payment
+    RPC-->>Server: Payment confirmed
+
+    Server->>Server: Record purchase · Split fees · Pay creator
+    Server-->>Frontend: 200 OK + PAYMENT-RESPONSE + lesson content
+    Frontend->>User: Grant access to lesson
 ```
 
 ### Key Files
